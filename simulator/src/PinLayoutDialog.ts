@@ -1,14 +1,15 @@
-import { CustomComponent, CustomComponentDef, ExternalPinLayout } from "./components/CustomComponent"
+import type { CustomComponent, CustomComponentDef } from "./components/CustomComponent"
+import type { ExternalPinLayout } from "./ExternalPinLayout"
 import { Serialization } from "./Serialization"
 import { Orientation } from "./utils"
 
 const sides: Orientation[] = ["w", "n", "e", "s"]
 const sideLabels: Record<Orientation, string> = { w: "Left / Gauche", n: "Top / Haut", e: "Right / Droite", s: "Bottom / Bas" }
 
-export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, onClose: () => void) {
+export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, makeDefinition: typeof CustomComponentDef, onClose: () => void) {
     const circuit = Serialization.buildComponentsAndWireObject([...root.components.all()], [], undefined)
     let draft = root.draftPinLayout?.map(pin => ({ ...pin }))
-    const makeDef = (layout: ExternalPinLayout | undefined) => new CustomComponentDef({
+    const makeDef = (layout: ExternalPinLayout | undefined) => new makeDefinition({
         id: root.customDef.customId,
         caption: root.customDef.caption,
         circuit: { components: { ...circuit.components }, wires: circuit.wires },

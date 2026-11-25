@@ -1,4 +1,5 @@
 import * as t from "io-ts"
+import { ExternalPinLayout } from "../ExternalPinLayout"
 import { ComponentFactory } from "../ComponentFactory"
 import { ComponentList } from "../ComponentList"
 import { LogicEditor } from "../LogicEditor"
@@ -34,8 +35,7 @@ export const CustomComponentImageWidth = 50
 export const CustomComponentImageHeight = 34
 
 // How custom component definitions are stored in JSON
-export const ExternalPinLayout = t.array(t.type({ id: t.string, side: t.keyof({ n: null, e: null, s: null, w: null }) }))
-export type ExternalPinLayout = t.TypeOf<typeof ExternalPinLayout>
+
 
 export const CustomComponentDefRepr = t.intersection([t.type({
     id: t.string,

@@ -30,7 +30,7 @@ import { TopBar } from "./TopBar"
 import { EditorSelection, PointerDragEvent, UIEventManager } from "./UIEventManager"
 import { UndoManager } from './UndoManager'
 import { Component, ComponentBase, InjectedParams } from "./components/Component"
-import { CustomComponent } from "./components/CustomComponent"
+import { CustomComponent, CustomComponentDef } from "./components/CustomComponent"
 import { Drawable, DrawableParent, DrawableWithDraggablePosition, DrawableWithPosition, EditTools, GraphicsRendering } from "./components/Drawable"
 import { type Input } from "./components/Input"
 import { Rectangle, RectangleDef } from "./components/Rectangle"
@@ -1691,7 +1691,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         const root = this.editorRoot
         if (!(root instanceof CustomComponent) || this.mode < Mode.DESIGN) return
         this._dontHogFocus = true
-        openPinLayoutDialog(root, this.html.rootDiv, () => {
+        openPinLayoutDialog(root, this.html.rootDiv, CustomComponentDef, () => {
             this._dontHogFocus = false
             this.focus()
         })

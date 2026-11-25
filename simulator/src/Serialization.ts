@@ -6,7 +6,8 @@ import { EditorOptions, LogicEditor } from "./LogicEditor"
 import { NodeMapping } from './NodeManager'
 import { TestSuite, TestSuiteRepr } from './TestSuite'
 import { type Component } from "./components/Component"
-import { ExternalPinLayout, type CustomComponent, type CustomComponentDefRepr } from './components/CustomComponent'
+import type { CustomComponent, CustomComponentDefRepr } from './components/CustomComponent'
+import { ExternalPinLayout } from './ExternalPinLayout'
 import { DrawableParent } from './components/Drawable'
 import { Wire } from "./components/Wire"
 import { S } from './strings'

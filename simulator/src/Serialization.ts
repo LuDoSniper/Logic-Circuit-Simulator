@@ -6,7 +6,7 @@ import { EditorOptions, LogicEditor } from "./LogicEditor"
 import { NodeMapping } from './NodeManager'
 import { TestSuite, TestSuiteRepr } from './TestSuite'
 import { type Component } from "./components/Component"
-import { type CustomComponent, type CustomComponentDefRepr } from './components/CustomComponent'
+import { ExternalPinLayout, type CustomComponent, type CustomComponentDefRepr } from './components/CustomComponent'
 import { DrawableParent } from './components/Drawable'
 import { Wire } from "./components/Wire"
 import { S } from './strings'
@@ -38,6 +38,7 @@ type Scratch = {
 
     /** The ID of the component whose scratch space it is */
     id: string,
+    pinLayout?: ExternalPinLayout | null,
 
 } & ComponentAndWires
 
@@ -235,6 +236,13 @@ class _Serialization {
             if (scratch !== undefined && isRecord(scratch) && isString(scratch.id) && (customComp_ = parent.components.get(scratch.id)) !== undefined) {
                 delete scratch.id
                 const customComp = customComp_ as CustomComponent
+                if (scratch.pinLayout === null) {
+                    customComp.draftPinLayout = undefined
+                } else if (scratch.pinLayout !== undefined) {
+                    const layout = validateJson(scratch.pinLayout, ExternalPinLayout, "scratch.pinLayout")
+                    if (layout !== undefined) customComp.draftPinLayout = layout
+                }
+                delete scratch.pinLayout
                 const error = this.loadCircuitForCustomComponent(customComp, scratch)
                 if (error !== undefined) {
                     console.error("Error loading scratch space: " + error)
@@ -372,6 +380,7 @@ class _Serialization {
             // we save this scratch space, too
             const scratch: Scratch = {
                 id: customComp.ref ?? "n/a",
+                pinLayout: customComp.draftPinLayout ?? null,
             }
             this.buildReprsInto(scratch, editorRoot.components.all(), editorRoot.linkMgr.wires, editorRoot.testSuites.suites)
             dataObject.scratch = scratch

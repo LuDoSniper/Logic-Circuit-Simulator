@@ -26,6 +26,7 @@ export class TopBar {
     private readonly openButton: HTMLButtonElement
     private readonly loadFromBrowserButton: HTMLButtonElement
     private readonly closeCustomComponentButton: HTMLButtonElement
+    private readonly appearanceButton: HTMLButtonElement
     private readonly undoButton: HTMLButtonElement
     private readonly redoButton: HTMLButtonElement
     private readonly downloadButton: HTMLButtonElement
@@ -66,9 +67,16 @@ export class TopBar {
         this.customComponentNameLabel.style.fontWeight = "bolder"
         this.closeCustomComponentButton = this.makeButton("close", s.CloseCircuit, () => editor.tryCloseCustomComponentEditor())
         this.closeCustomComponentButton.style.padding = "0"
+        this.appearanceButton = document.createElement("button")
+        this.appearanceButton.type = "button"
+        this.appearanceButton.className = "pin-appearance-button"
+        this.appearanceButton.textContent = "Appearance / Apparence"
+        this.appearanceButton.title = "Edit external pin layout / Modifier les broches externes"
+        this.appearanceButton.addEventListener("click", () => editor.editCustomComponentAppearance())
         this.customComponentTab = this.makeTab(
             this.closeCustomComponentButton,
             this.customComponentNameLabel,
+            this.appearanceButton,
         )
         this.circuitNameGroup =
             div(cls("path"), style("flex: none; display: flex; align-items: stretch; margin: -3px 0 -3px -5px; padding: 3px 5px"),

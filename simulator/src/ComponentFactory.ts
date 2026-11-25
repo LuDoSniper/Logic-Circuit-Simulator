@@ -630,6 +630,7 @@ export class ComponentFactory {
             id: def.customId,
             caption: def.caption,
             circuit: { components: circuit.components, wires: circuit.wires },
+            ...(defRoot.draftPinLayout === undefined ? {} : { pinLayout: defRoot.draftPinLayout.filter(pin => Object.prototype.hasOwnProperty.call(circuit.components, pin.id)) }),
         })
 
         if (newDef.numInputs !== def.numInputs || newDef.numOutputs !== def.numOutputs) {

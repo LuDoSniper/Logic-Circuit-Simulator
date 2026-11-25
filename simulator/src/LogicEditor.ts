@@ -13,6 +13,7 @@ import * as pngMeta from 'png-metadata-writer'
 import { ComponentFactory } from "./ComponentFactory"
 import { ComponentList } from "./ComponentList"
 import { ComponentMenu, ComponentSection, getAllComponentTypes } from "./ComponentMenu"
+import { openPinLayoutDialog } from "./PinLayoutDialog"
 import { CurrentFormatVersion } from "./DataMigration"
 import { KeyInfoPanel } from "./KeyInfoPanel"
 import { MessageBar } from "./MessageBar"
@@ -1686,6 +1687,16 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         this.editor.tryLoadCircuitFromData(false, PostLoadActions_None)
     }
 
+    public editCustomComponentAppearance() {
+        const root = this.editorRoot
+        if (!(root instanceof CustomComponent) || this.mode < Mode.DESIGN) return
+        this._dontHogFocus = true
+        openPinLayoutDialog(root, this.html.rootDiv, () => {
+            this._dontHogFocus = false
+            this.focus()
+        })
+    }
+
     public tryCloseCustomComponentEditor() {
         const editorRoot = this.editor.editorRoot
         if (!(editorRoot instanceof CustomComponent)) {
@@ -1704,6 +1715,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
             this.components.updateCustomComponents(type)
         }
         this.setEditorRoot(this.editor)
+        this.updateCustomComponentButtons()
         this.editTools.undoMgr.takeSnapshot()
         return true
     }

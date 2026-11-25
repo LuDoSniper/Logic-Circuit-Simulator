@@ -34,14 +34,17 @@ export const CustomComponentImageWidth = 50
 export const CustomComponentImageHeight = 34
 
 // How custom component definitions are stored in JSON
-export const CustomComponentDefRepr = t.type({
+export const ExternalPinLayout = t.array(t.type({ id: t.string, side: t.keyof({ n: null, e: null, s: null, w: null }) }))
+export type ExternalPinLayout = t.TypeOf<typeof ExternalPinLayout>
+
+export const CustomComponentDefRepr = t.intersection([t.type({
     id: t.string,
     caption: t.string,
     circuit: t.type({
         components: typeOrUndefined(t.record(t.string, t.record(t.string, t.unknown))),
         wires: typeOrUndefined(t.array(Wire.Repr)),
     }),
-})
+}), t.partial({ pinLayout: ExternalPinLayout })])
 
 export type CustomComponentDefRepr = t.TypeOf<typeof CustomComponentDefRepr>
 type CircuitRepr = CustomComponentDefRepr["circuit"]
@@ -52,6 +55,7 @@ export class CustomComponentDef {
     public customId: string
     public readonly circuit: CircuitRepr
     public readonly insOuts: CustomComponentNodeSpec[]
+    public readonly pinLayout: ExternalPinLayout | undefined
     public readonly numInputs: number
     public readonly numOutputs: number
     private readonly numBySide: Record<Orientation, number> = { n: 0, e: 0, s: 0, w: 0 }
@@ -64,6 +68,7 @@ export class CustomComponentDef {
             id: this.customId,
             caption: this._caption,
             circuit: this.circuit,
+            ...(this.pinLayout === undefined ? {} : { pinLayout: this.pinLayout }),
         }
     }
 
@@ -84,6 +89,7 @@ export class CustomComponentDef {
         this.customId = data.id
         this._caption = data.caption
         this.circuit = data.circuit
+        this.pinLayout = data.pinLayout
 
         this.insOuts = []
         let totalIn = 0
@@ -99,7 +105,6 @@ export class CustomComponentDef {
                 let orient = Orientations.includes(inOutRepr.orient) ? inOutRepr.orient : Orientation.default
                 orient = isIn ? Orientation.invert(orient) : orient
                 const numBits = Number(inOutRepr.bits ?? 1)
-                this.numBySide[orient] += numBits
                 const sourcePos = (isArray(inOutRepr.pos) && inOutRepr.pos.length === 2 ? inOutRepr.pos.map(Number) : [0, 0]) as [number, number]
                 this.insOuts.push({ isIn, id, name, orient, numBits, sourcePos, sourceRepr: inOutRepr })
                 delete components[id] // add them back after 2D sorting
@@ -118,7 +123,43 @@ export class CustomComponentDef {
         this.numInputs = totalIn
         this.numOutputs = totalOut
 
+        for (const pin of this.externalPins()) this.numBySide[pin.orient] += pin.numBits
         this.recalcSize()
+    }
+
+    /** Physical order is independent of the logical order used by the simulator. */
+    public externalPins(): CustomComponentNodeSpec[] {
+        const automatic = this.insOuts
+        const byId = new Map(automatic.map(pin => [pin.id, pin]))
+        const assigned = new Set<string>()
+        const ordered: CustomComponentNodeSpec[] = []
+        for (const entry of this.pinLayout ?? []) {
+            const pin = byId.get(entry.id)
+            if (pin !== undefined && !assigned.has(entry.id)) {
+                ordered.push({ ...pin, orient: entry.side })
+                assigned.add(entry.id)
+            }
+        }
+        // Top and bottom sides are presented from left to right; the legacy
+        // automatic arrangement was calculated from right to left.
+        for (const side of Orientations) {
+            const remaining = automatic.filter(pin => pin.orient === side && !assigned.has(pin.id))
+            if (Orientation.isVertical(side)) remaining.reverse()
+            ordered.push(...remaining)
+        }
+        return ordered
+    }
+
+    public externalPinPositions(gridWidth = this.gridWidth, gridHeight = this.gridHeight) {
+        const counts: Record<Orientation, number> = { n: 0, e: 0, s: 0, w: 0 }
+        return this.externalPins().map(pin => {
+            const { orient, numBits } = pin
+            const along = -(this.numBySide[orient] - 1) + 2 * (counts[orient] + (numBits - 1) / 2)
+            counts[orient] += numBits
+            const x = orient === "w" ? -gridWidth / 2 - 1 : orient === "e" ? gridWidth / 2 + 1 : along
+            const y = orient === "n" ? -gridHeight / 2 - 1 : orient === "s" ? gridHeight / 2 + 1 : along
+            return { pin, x, y }
+        })
     }
 
     private recalcSize() {
@@ -237,43 +278,19 @@ export class CustomComponentDef {
             valueDefaults: {},
             size: () => ({ gridWidth: this.gridWidth, gridHeight: this.gridHeight }),
             makeNodes: ({ gridWidth, gridHeight }) => {
-                const right = gridWidth / 2 + 1
-                const left = -right
-                const bottom = gridHeight / 2 + 1
-                const top = -bottom
-                const starts: Record<Orientation, number> = {
-                    n: this.numBySide.n - 1,
-                    e: -(this.numBySide.e - 1),
-                    s: this.numBySide.s - 1,
-                    w: -(this.numBySide.w - 1),
-                }
-                const counts: Record<Orientation, number> = { n: 0, e: 0, s: 0, w: 0 }
-                const make = (spec: CustomComponentNodeSpec): NodeDesc | NodeGroupDesc<NodeDesc> => {
-                    const { orient, numBits } = spec
-                    const [x, y] = (() => {
-                        const f = Orientation.isVertical(orient) ? -1 : 1
-                        const nextPos = starts[orient] + f * (counts[orient] + (numBits - 1) / 2) * 2
-                        switch (orient) {
-                            case "e": return [right, nextPos]
-                            case "w": return [left, nextPos]
-                            case "n": return [nextPos, top]
-                            case "s": return [nextPos, bottom]
-                        }
-                    })()
-                    counts[orient] += numBits
-                    return numBits === 1
+                const positions = new Map(this.externalPinPositions(gridWidth, gridHeight).map(pos => [pos.pin.id, pos]))
+                const ins: NodeRec<NodeInDesc> = {}
+                const outs: NodeRec<NodeOutDesc> = {}
+                // Keep the logical sequence (and serialized node IDs) unchanged.
+                for (const spec of this.insOuts) {
+                    const { pin, x, y } = positions.get(spec.id)!
+                    const { orient, numBits } = pin
+                    const desc: NodeDesc | NodeGroupDesc<NodeDesc> = numBits === 1
                         ? [x, y, orient]
                         : Orientation.isVertical(orient)
                             ? groupHorizontal(orient, x, y, numBits)
                             : groupVertical(orient, x, y, numBits)
-                }
-
-                const ins: NodeRec<NodeInDesc> = {}
-                const outs: NodeRec<NodeOutDesc> = {}
-                //.sort((a, b) => a.sortIndex - b.sortIndex)
-                // console.log(sortedSpecs)
-                for (const spec of this.insOuts) {
-                    (spec.isIn ? ins : outs)[spec.name] = make(spec)
+                    ;(spec.isIn ? ins : outs)[spec.name] = desc
                 }
                 return { ins, outs }
             },
@@ -293,6 +310,7 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
 
     private _customDef: CustomComponentDef
     public get customDef() { return this._customDef }
+    public draftPinLayout: ExternalPinLayout | undefined
     public readonly numInputs: number
     public readonly numOutputs: number
 
@@ -325,6 +343,7 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
     public constructor(parent: DrawableParent, customDef: CustomComponentDef, saved?: CustomComponentRepr) {
         super(parent, customDef.toStandardDef().from(parent), saved)
         this._customDef = customDef
+        this.draftPinLayout = customDef.pinLayout?.map(pin => ({ ...pin }))
         this.numInputs = this.inputs._all.length
         this.numOutputs = this.outputs._all.length
 

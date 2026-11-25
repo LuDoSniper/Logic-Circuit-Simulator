@@ -133,7 +133,7 @@ export class TopBar {
         ))
 
         this.root =
-            div(cls("topBar"), style("flex:none; height: 30px; padding: 3px 5px; display: flex; align-items: stretch;"),
+            div(cls("topBar"), style("flex:none; height: 42px; padding: 5px 8px; display: flex; align-items: stretch;"),
                 this.circuitNameGroup,
 
                 this.undoButton,
@@ -172,6 +172,25 @@ export class TopBar {
 
             ).render()
 
+        if (editor.isSingleton) {
+            const themeButton = document.createElement("button")
+            themeButton.type = "button"
+            themeButton.className = "remaster-theme-button"
+            const refresh = () => {
+                const preference = editor.themePreference
+                themeButton.textContent = preference === "system" ? "◐" : preference === "dark" ? "☾" : "☀"
+                themeButton.title = `Theme: ${preference} (click to switch)`
+                themeButton.setAttribute("aria-label", themeButton.title)
+            }
+            themeButton.addEventListener("click", () => {
+                const preference = editor.themePreference
+                editor.setThemePreference(preference === "system" ? "light" : preference === "light" ? "dark" : "system")
+                refresh()
+                editor.focus()
+            })
+            refresh()
+            this.root.append(themeButton)
+        }
         editor.html.centerCol.insertAdjacentElement("afterbegin", this.root)
 
         const undoMgr = editor.editTools.undoMgr

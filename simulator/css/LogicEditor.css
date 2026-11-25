@@ -792,3 +792,16 @@ svg text {
 .dark .testcase-wrongvalue {
   color: #ff9898;
 }
+/* Remaster editor chrome. Circuit colours remain managed by drawutils. */
+#logicEditorRoot { font-family: "Segoe UI", system-ui, sans-serif; --chrome: #f8fafc; --panel: #fff; --edge: #dbe2ea; --ink: #243247; --hover: #e5edf7; --accent: #2563eb; }
+#logicEditorRoot.dark { color-scheme: dark; --chrome: #202630; --panel: #191f28; --edge: #343e4c; --ink: #e2e8f0; --hover: #303b4b; --accent: #93baff; }
+#logicEditorRoot .topBar { background: var(--chrome); border-bottom: 1px solid var(--edge); color: var(--ink); gap: 3px; }
+#logicEditorRoot .topBar button { border-radius: 6px; }
+#logicEditorRoot .topBar button:not(:disabled, .active):hover { background: var(--hover); }
+#logicEditorRoot .topBar button.active { background: var(--hover); box-shadow: inset 0 -2px var(--accent); }
+#logicEditorRoot #leftToolbar { background: var(--panel); color: var(--ink); border-color: var(--edge); border-right: 1px solid var(--edge); }
+#logicEditorRoot .leftToolbarHeader { background: var(--chrome); padding: 6px 3px; color: var(--ink); letter-spacing: .025em; }
+#logicEditorRoot #leftToolbar .list-group-item { background: var(--panel); color: var(--ink); border-color: var(--edge); }
+#logicEditorRoot #leftToolbar .list-group-item:hover { background: var(--hover); }
+#logicEditorRoot .remaster-theme-button { min-width: 30px; font-size: 18px; color: var(--ink); background: transparent; border: 1px solid var(--edge); cursor: pointer; }
+#logicEditorRoot .remaster-theme-button:focus-visible { outline: 2px solid var(--accent); }

@@ -600,10 +600,8 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
 
             // singletons manage their dark mode according to system settings
             const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)")
-            darkModeQuery.onchange = () => {
-                setDarkMode(darkModeQuery.matches, false, false)
-            }
-            setDarkMode(darkModeQuery.matches, true, true)
+            darkModeQuery.onchange = () => this.applyThemePreference()
+            this.applyThemePreference()
 
             // reexport some libs
             window.JSON5 = JSON5
@@ -1722,7 +1720,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
             return false
         }
 
-        const newGroup = RectangleDef.make(this)
+        const newGroup = RectangleDef.make(this.editorRoot)
         newGroup.setSpawned()
 
         if (newGroup instanceof Rectangle) {
@@ -1754,6 +1752,25 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
             this._topBar?.setDirty(false)
             this.dispatchEvent(new CustomEvent("clean"))
         }
+    }
+
+    public get themePreference(): "system" | "light" | "dark" {
+        try {
+            const value = localStorage.getItem("logic-remaster-theme")
+            if (value === "light" || value === "dark") return value
+        } catch { /* storage may be disabled */ }
+        return "system"
+    }
+
+    public setThemePreference(value: "system" | "light" | "dark") {
+        try { localStorage.setItem("logic-remaster-theme", value) } catch { /* storage may be disabled */ }
+        this.applyThemePreference(value)
+    }
+
+    private applyThemePreference(value = this.themePreference) {
+        const dark = value === "dark" || (value === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches)
+        setDarkMode(dark, true, false)
+        this.setDark(dark)
     }
 
     public setDark(dark: boolean) {
@@ -2978,7 +2995,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         if (jsonStr === undefined || jsonStr === "") {
             return
         }
-        const errorOrComps = Serialization.pasteComponents(this, jsonStr)
+        const errorOrComps = Serialization.pasteComponents(this.editorRoot, jsonStr)
         if (isString(errorOrComps)) {
             console.log(errorOrComps)
         } else {
@@ -2987,6 +3004,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
                 selection.toggle(comp)
             }
             this.eventMgr.currentSelection = selection
+            this.editTools.undoMgr.takeSnapshot()
         }
         this.focus()
     }

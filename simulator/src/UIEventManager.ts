@@ -57,13 +57,13 @@ export class EditorSelection {
     public finishCurrentRect(editor: LogicEditor) {
         let rect
         if ((rect = this.currentlyDrawnRect) !== undefined) {
-            for (const comp of editor.components.all()) {
+            for (const comp of editor.editorRoot.components.all()) {
                 if (comp.isInRect(rect)) {
                     this.toggle(comp)
                 }
             }
 
-            for (const wire of editor.linkMgr.wires) {
+            for (const wire of editor.editorRoot.linkMgr.wires) {
                 for (const point of wire.waypoints) {
                     if (point.isInRect(rect)) {
                         this.toggle(point)
@@ -463,7 +463,34 @@ export class UIEventManager {
             return { dist, centerX, centerY }
         }
 
+        let middlePan: { id: number, x: number, y: number, tx: number, ty: number } | undefined
+        const finishMiddlePan = () => {
+            if (middlePan === undefined) return
+            middlePan = undefined
+            editor.setToolCursor(null)
+            editor.finishAutoZoomTranslationIfActive()
+        }
+        canvas.addEventListener("lostpointercapture", editor.wrapHandler(e => {
+            if (middlePan?.id === e.pointerId) finishMiddlePan()
+        }))
+        canvas.addEventListener("mousedown", e => {
+            if (e.button === 1) e.preventDefault()
+        })
+        canvas.addEventListener("auxclick", e => {
+            if (e.button === 1) e.preventDefault()
+        })
         canvas.onpointerdown = editor.wrapHandler(e => {
+            if (e.button === 1) {
+                e.preventDefault()
+                if (editor.mode >= Mode.CONNECT && downPointers.size === 0 && middlePan === undefined) {
+                    canvas.setPointerCapture(e.pointerId)
+                    middlePan = { id: e.pointerId, x: e.clientX, y: e.clientY, tx: editor.translationX, ty: editor.translationY }
+                    editor.setToolCursor("grabbing")
+                    this.clearTooltipIfNeeded()
+                }
+                return
+            }
+            if (middlePan !== undefined) return
             const pointerId = e.pointerId
             canvas.setPointerCapture(pointerId)
             downPointers.set(pointerId, e)
@@ -497,6 +524,17 @@ export class UIEventManager {
             }
         })
         canvas.onpointermove = editor.wrapHandler(e => {
+            if (middlePan !== undefined) {
+                if (middlePan.id === e.pointerId) {
+                    if ((e.buttons & 4) === 0) {
+                        finishMiddlePan()
+                    } else {
+                        const scale = editor.userDrawingScale
+                        editor.setTranslation(middlePan.tx + (e.clientX - middlePan.x) / scale, middlePan.ty + (e.clientY - middlePan.y) / scale)
+                    }
+                }
+                return
+            }
             const pointerId = e.pointerId
             if (downPointers.has(pointerId)) {
                 // update it if it was down; otherwise, it's a mousemove without
@@ -526,6 +564,11 @@ export class UIEventManager {
         // no need to handle pointerout because it also fires when entering a child element
 
         const onpointerupcancel = editor.wrapHandler((e: PointerEvent) => {
+            if (middlePan?.id === e.pointerId) {
+                finishMiddlePan()
+                return
+            }
+            if (middlePan !== undefined) return
             const pointerId = e.pointerId
             downPointers.delete(pointerId)
 
@@ -607,7 +650,7 @@ export class UIEventManager {
                     let handled: boolean
                     handled = editor.eventMgr.tryDeleteComponentsWhere(comp => comp.state === ComponentState.SPAWNING, false) > 0
                     if (!handled) {
-                        handled = editor.linkMgr.tryCancelWireOrAnchor()
+                        handled = editor.editorRoot.linkMgr.tryCancelWireOrAnchor()
                     }
                     if (!handled && this.editor.editorRoot instanceof CustomComponent) {
                         handled = this.editor.tryCloseCustomComponentEditor()
@@ -1440,7 +1483,7 @@ class EditHandlers extends ToolHandlers {
 
     public override pointerUpOnBackground(__e: PointerEvent) {
         const editor = this.editor
-        editor.linkMgr.tryCancelWireOrAnchor()
+        editor.editorRoot.linkMgr.tryCancelWireOrAnchor()
 
         const eventMgr = editor.eventMgr
         const currentSelection = eventMgr.currentSelection
@@ -1603,12 +1646,12 @@ class SetAnchorHandlers extends ToolHandlers {
     public constructor(editor: LogicEditor, from: DrawableWithPosition) {
         super(editor)
         this._from = from
-        editor.linkMgr.startSettingAnchorFrom(from)
+        editor.editorRoot.linkMgr.startSettingAnchorFrom(from)
     }
 
     public override unmount() {
         // e.g. on escape, make sure to cancel the anchor set
-        this.editor.linkMgr.tryCancelSetAnchor()
+        this.editor.editorRoot.linkMgr.tryCancelSetAnchor()
     }
 
     private finish() {
@@ -1619,16 +1662,16 @@ class SetAnchorHandlers extends ToolHandlers {
     public override pointerClickedOn(comp: Drawable, __: PointerEvent) {
         let result: InteractionResult = InteractionResult.NoChange
         if (comp instanceof ComponentBase) {
-            result = this.editor.linkMgr.trySetAnchor(this._from, comp)
+            result = this.editor.editorRoot.linkMgr.trySetAnchor(this._from, comp)
         } else {
-            this.editor.linkMgr.tryCancelSetAnchor()
+            this.editor.editorRoot.linkMgr.tryCancelSetAnchor()
         }
         this.finish()
         return result
     }
 
     public override pointerUpOnBackground(__: PointerEvent) {
-        this.editor.linkMgr.tryCancelSetAnchor()
+        this.editor.editorRoot.linkMgr.tryCancelSetAnchor()
         this.finish()
     }
 }
@@ -1640,30 +1683,30 @@ class MoveHandlers extends ToolHandlers {
     }
 
     public override pointerDownOnBackground(e: PointerEvent) {
-        for (const comp of this.editor.components.all()) {
+        for (const comp of this.editor.editorRoot.components.all()) {
             comp.pointerDown(e)
         }
-        for (const wire of this.editor.linkMgr.wires) {
+        for (const wire of this.editor.editorRoot.linkMgr.wires) {
             for (const waypoint of wire.waypoints) {
                 waypoint.pointerDown(e)
             }
         }
     }
     public override pointerDraggedOnBackground(e: PointerDragEvent) {
-        for (const comp of this.editor.components.all()) {
+        for (const comp of this.editor.editorRoot.components.all()) {
             comp.pointerDragged(e)
         }
-        for (const wire of this.editor.linkMgr.wires) {
+        for (const wire of this.editor.editorRoot.linkMgr.wires) {
             for (const waypoint of wire.waypoints) {
                 waypoint.pointerDragged(e)
             }
         }
     }
     public override pointerUpOnBackground(e: PointerEvent) {
-        for (const comp of this.editor.components.all()) {
+        for (const comp of this.editor.editorRoot.components.all()) {
             comp.pointerUp(e)
         }
-        for (const wire of this.editor.linkMgr.wires) {
+        for (const wire of this.editor.editorRoot.linkMgr.wires) {
             for (const waypoint of wire.waypoints) {
                 waypoint.pointerUp(e)
             }

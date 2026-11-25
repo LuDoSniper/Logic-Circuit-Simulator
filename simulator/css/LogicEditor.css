@@ -908,3 +908,66 @@ svg text {
 .pin-layout-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .pin-layout-footer .primary { background: var(--accent); color: var(--panel); font-weight: 600; }
 @media (max-width: 680px) { .pin-layout-content { grid-template-columns: 1fr; } .pin-layout-preview { position: static; min-height: 180px; } }
+
+/* Symbol workbench: drag directly on the schematic or between port rows. */
+#logicEditorRoot .pin-layout-dialog {
+  --pin-input: #337ed4; --pin-output: #198568;
+  width: min(1180px, 96vw); max-height: 92vh; padding: 0; border-radius: 16px;
+  overflow: auto; font: 13px/1.45 "Segoe UI", system-ui, sans-serif;
+}
+#logicEditorRoot.dark .pin-layout-dialog { --pin-input: #82b6ff; --pin-output: #54d4a7; }
+.pin-layout-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 22px 24px 16px; border-bottom: 1px solid var(--edge); }
+.pin-layout-eyebrow { font-size: 10px; font-weight: 750; letter-spacing: .12em; color: var(--muted, var(--accent)); margin-bottom: 5px; }
+.pin-layout-header h2 { font-size: 24px; margin: 0 0 5px; font-weight: 650; }
+.pin-layout-header p { color: var(--muted, var(--ink)); margin: 0; }
+.pin-layout-header .pin-layout-status { border: 1px solid var(--edge); background: var(--chrome); padding: 5px 10px; border-radius: 20px; font-size: 11px; white-space: nowrap; }
+.pin-layout-status.is-custom { color: var(--accent); }
+.pin-layout-content { padding: 20px 24px; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr); gap: 20px; }
+.pin-layout-preview-panel { position: sticky; top: 0; min-width: 0; border: 1px solid var(--edge); border-radius: 12px; overflow: hidden; background: var(--panel); }
+.pin-layout-preview-title { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 12px 14px; font-weight: 650; border-bottom: 1px solid var(--edge); }
+.pin-layout-legend { display: flex; gap: 8px; font-weight: 500; }
+.pin-kind { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 650; white-space: nowrap; }
+.pin-kind::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pin-kind.input { color: var(--pin-input); }
+.pin-kind.output { color: var(--pin-output); }
+.pin-layout-preview { position: relative; border: none; border-radius: 0; min-height: 350px; background-color: var(--chrome); background-image: radial-gradient(var(--edge) 1px, transparent 1px); background-size: 16px 16px; }
+.pin-layout-preview svg { width: 100%; max-height: 520px; min-height: 320px; padding: 10px; touch-action: none; }
+.pin-layout-drop-hint { border-top: 1px solid var(--edge); padding: 10px 14px; min-height: 42px; color: var(--muted, var(--ink)); font-size: 12px; }
+.pin-layout-inspector { min-width: 0; }
+.pin-layout-inspector > h3 { margin: 0 0 3px; font-size: 15px; font-weight: 650; }
+.pin-layout-inspector > p { color: var(--muted, var(--ink)); font-size: 12px; margin-bottom: 12px; }
+.pin-layout-groups { gap: 9px; }
+.pin-layout-groups section { border: 1px solid var(--edge); border-radius: 9px; padding: 8px; position: relative; }
+.pin-layout-groups h3 { color: var(--muted, var(--ink)); padding: 2px 4px; margin: 0 0 5px; font-size: 11px; }
+.pin-layout-groups small { display: block; color: var(--muted, var(--ink)); padding: 8px; text-align: center; border: 1px dashed var(--edge); border-radius: 6px; }
+.pin-layout-row { position: relative; margin: 3px 0; padding: 5px; border: 1px solid transparent; border-radius: 7px; gap: 5px; background: var(--chrome); cursor: grab; touch-action: none; user-select: none; }
+.pin-layout-row:hover { border-color: var(--edge); }
+.pin-layout-row span.pin-layout-handle { flex: none; width: 12px; font-size: 16px; color: var(--muted, var(--ink)); }
+.pin-layout-row span.pin-kind { flex: none; font-size: 10px; overflow: visible; }
+.pin-layout-row span.pin-layout-name { font-weight: 600; }
+.pin-layout-row select { max-width: 100px; min-width: 0; }
+.pin-layout-row button { width: 26px; padding: 3px; flex: none; }
+.pin-drop-zone { fill: var(--accent); fill-opacity: .035; stroke: var(--accent); stroke-opacity: .18; stroke-dasharray: 3 4; }
+.pin-layout-dragging .pin-drop-zone { fill-opacity: .1; stroke-opacity: .6; }
+.pin-drop-zone.pin-drop-active { fill-opacity: .28; stroke-opacity: 1; stroke-width: 2; }
+.pin-preview-handle { cursor: grab; touch-action: none; }
+.pin-preview-handle:hover .pin-preview-hit { fill-opacity: .45; }
+.pin-layout-dragging, .pin-layout-dragging * { cursor: grabbing !important; }
+.pin-layout-groups section.pin-drop-active { border-color: var(--accent); background: var(--hover); }
+.pin-layout-row.pin-drop-before::before, .pin-layout-groups section.pin-drop-end::after { content: ""; display: block; height: 2px; border-radius: 2px; background: var(--accent); }
+.pin-layout-row.pin-drop-before::before { position: absolute; top: -3px; left: 3px; right: 3px; }
+.pin-layout-groups section.pin-drop-end::after { margin-top: 4px; }
+.pin-layout-drag-ghost { position: fixed; z-index: 10; pointer-events: none; padding: 8px 12px; color: var(--ink); background: var(--panel); border: 1px solid var(--accent); border-radius: 7px; box-shadow: var(--shadow); font-weight: 650; }
+.pin-layout-drag-ghost[hidden] { display: none; }
+.pin-layout-footer { padding: 14px 24px; margin: 0; border-top: 1px solid var(--edge); background: var(--panel); }
+.pin-layout-footer .pin-layout-reset { margin-right: auto; }
+.pin-layout-footer button { padding: 8px 13px; font-weight: 600; }
+.pin-layout-footer .primary:hover { background: var(--accent); filter: brightness(.94); }
+@media (max-width: 760px) {
+  .pin-layout-content { grid-template-columns: 1fr; padding: 12px; }
+  .pin-layout-preview-panel { position: static; }
+  .pin-layout-header, .pin-layout-footer { padding: 12px; }
+  .pin-layout-preview { min-height: 210px; }
+  .pin-layout-preview svg { min-height: 200px; max-height: 320px; }
+  .pin-layout-footer { flex-wrap: wrap; }
+}

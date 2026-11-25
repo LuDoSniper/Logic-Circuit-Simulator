@@ -14,7 +14,11 @@ async function api<T>(path: string, method = "GET", data?: unknown): Promise<T> 
     })
     let result
     try { result = await response.json() } catch { throw new ApiError(response.status, "Serveur de comptes indisponible.") }
-    if (!response.ok) throw new ApiError(response.status, result.error ?? "Erreur du serveur.")
+    if (!response.ok) {
+        const message = typeof result === "object" && result !== null && "error" in result && typeof result.error === "string"
+            ? result.error : "Erreur du serveur."
+        throw new ApiError(response.status, message)
+    }
     return result as T
 }
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T

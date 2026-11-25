@@ -1723,8 +1723,8 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
             this.eventMgr.setCurrentComponentUnderPointer(null)
             this.eventMgr.clearTooltipIfNeeded()
             this.editTools.moveMgr.clear()
-            this.userdata = data.userdata === undefined ? undefined : JSON.parse(JSON.stringify(data.userdata))
-            const error = Serialization.loadCircuitOrLibrary(this, JSON.parse(JSON.stringify(data)), PostLoadActions_None)
+            this.userdata = data.userdata === undefined ? undefined : structuredClone(data.userdata)
+            const error = Serialization.loadCircuitOrLibrary(this, structuredClone(data), PostLoadActions_None)
             if (error !== undefined) throw new Error(error)
         }
         try { load(circuit) } catch (e) { load(backup); throw e }

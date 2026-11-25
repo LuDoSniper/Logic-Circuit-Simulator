@@ -3026,7 +3026,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         if (referenced.length !== 0) {
             void (async () => {
                 for (const elem of referenced) {
-                    if (!await this.appConfirm(S.Tests.ComponentUsedInTestSuite.expand({ ref: (elem as ComponentBase).ref }), true, "Supprimer")) return
+                    if (!await this.appConfirm(S.Tests.ComponentUsedInTestSuite.expand({ ref: elem.ref }), true, "Supprimer")) return
                 }
                 if (root !== this.editorRoot) return
                 this.deleteConfirmedSelection(selection)

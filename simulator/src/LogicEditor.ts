@@ -29,6 +29,7 @@ import { Timeline } from "./Timeline"
 import { TopBar } from "./TopBar"
 import { EditorSelection, PointerDragEvent, UIEventManager } from "./UIEventManager"
 import { UndoManager } from './UndoManager'
+import { AccountWorkspace } from "./AccountWorkspace"
 import { Component, ComponentBase, InjectedParams } from "./components/Component"
 import { CustomComponent, CustomComponentDef } from "./components/CustomComponent"
 import { Drawable, DrawableParent, DrawableWithDraggablePosition, DrawableWithPosition, EditTools, GraphicsRendering } from "./components/Drawable"
@@ -244,6 +245,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
     private _isDirty = false
     private _isRunningOrCreatingTests = false // when inputs are being set programmatically over a longer period
     private _dontHogFocus = false
+    private _accountWorkspace: AccountWorkspace | undefined
     private _mode: Mode = DEFAULT_MODE
     public get mode() { return this._mode }
     public get modeStr() { return Mode[this._mode].toLowerCase() }
@@ -493,6 +495,8 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         const insts = LogicEditor._allConnectedEditors
         insts.splice(insts.indexOf(this), 1)
 
+        this._accountWorkspace?.dispose()
+        this._accountWorkspace = undefined
         // TODO
         // this.eventMgr.unregisterCanvasListenersOn(this.html.mainCanvas)
     }
@@ -638,7 +642,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
             this.html.canvasContainer.insertAdjacentElement("afterbegin", madeBy)
 
             window.onbeforeunload = e => {
-                if (this._isSingleton && this._isDirty && this.mode >= Mode.CONNECT) {
+                if (this._isSingleton && this.mode >= Mode.CONNECT && (this._accountWorkspace?.hasProject ? this._accountWorkspace.hasUnsavedChanges : this._isDirty)) {
                     e.preventDefault() // ask to save changes
                     e.returnValue = S.Messages.ReallyCloseWindow
                 }
@@ -1096,6 +1100,13 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         LogicEditor.installGlobalListeners()
 
         this.doRedraw(true)
+        if (this._isSingleton && !this._norestore && !this._noLoadSave && (location.protocol === "http:" || location.protocol === "https:")) {
+            const toolbar = this.html.centerCol.querySelector<HTMLElement>(".topBar")
+            if (toolbar !== null) {
+                this._accountWorkspace = new AccountWorkspace(this, this.html.rootDiv, toolbar)
+                void this._accountWorkspace.initialize()
+            }
+        }
     }
 
     private findLightDOMChild<K extends keyof HTMLElementTagNameMap>(tagName: K): HTMLElementTagNameMap[K] | null {
@@ -1407,6 +1418,10 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         }
         this.updateKeyInfoPanel()
 
+        if (this._accountWorkspace?.hasProject) {
+            this._accountWorkspace.queue(circuit)
+            return
+        }
         if (this._norestore) {
             return
         }
@@ -1458,6 +1473,10 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
      * by the user and should show errors
      */
     public tryLoadFromLocalStorage(): boolean {
+        if (this._accountWorkspace?.hasProject) {
+            window.alert("Ouvrez un fichier exporté ou déconnectez-vous pour retrouver le circuit invité.")
+            return false
+        }
         const savedTime = this.tryLoadFromStorage(localStorage, PostLoadActions_SnapshotNoStorage)
         if (savedTime === undefined) {
             window.alert(S.Messages.NoSavedData)
@@ -1683,8 +1702,32 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
     }
 
     public resetCircuit() {
+        if (this._accountWorkspace?.hasProject) {
+            this._accountWorkspace.resetProject()
+            return
+        }
         this.tryClearBrowserStorage()
         this.editor.tryLoadCircuitFromData(false, PostLoadActions_None)
+    }
+
+    public setAccountDialogFocus(open: boolean) {
+        this._dontHogFocus = open
+        if (!open) this.focus()
+    }
+
+    public replaceWorkspaceCircuit(circuit: Circuit, resetHistory = true) {
+        const backup = JSON.parse(JSON.stringify(this.save())) as Circuit
+        const load = (data: Circuit) => {
+            this.setEditorRoot(this)
+            this.userdata = undefined
+            const error = Serialization.loadCircuitOrLibrary(this, JSON.parse(JSON.stringify(data)), PostLoadActions_None)
+            if (error !== undefined) throw new Error(error)
+        }
+        try { load(circuit) } catch (e) { load(backup); throw e }
+        if (resetHistory) this.editTools.undoMgr.resetHistory()
+        else this.editTools.undoMgr.takeSnapshot(undefined, true)
+        this.clearDirty()
+        this.recalcPropagateAndDrawIfNeeded()
     }
 
     public editCustomComponentAppearance() {

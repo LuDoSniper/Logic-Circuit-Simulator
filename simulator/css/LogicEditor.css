@@ -993,3 +993,34 @@ svg text {
   .pin-layout-drag-ghost, .pin-layout-row, .pin-preview-handle, .pin-drop-zone, .pin-layout-groups section { transition: none; }
   .pin-layout-row.pin-drop-before::before, .pin-layout-groups section.pin-drop-end::after { animation: none; }
 }
+
+/* Accounts and project workspace */
+#logicEditorRoot .account-workspace-button { border: 1px solid var(--edge); color: var(--ink); white-space: nowrap; }
+.account-workspace-icon { color: var(--muted, #8795a5); font-size: 10px; }
+.account-workspace-button[data-state="saved"] .account-workspace-icon { color: #229b78; }
+.account-workspace-button[data-state="saving"] .account-workspace-icon { color: #c58b24; }
+.account-workspace-button[data-state="error"] .account-workspace-icon { color: #e06565; }
+#logicEditorRoot .account-dialog { width: min(660px, 95vw); max-height: 90vh; padding: 0; overflow: auto; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 14px; box-shadow: var(--shadow, 0 16px 48px #0005); font: 13px/1.5 "Segoe UI", system-ui, sans-serif; }
+.account-dialog::backdrop { background: #0008; }
+.account-dialog header, .account-dialog footer { padding: 16px 22px; background: var(--chrome); }
+.account-dialog header { border-bottom: 1px solid var(--edge); }
+.account-dialog header small { color: var(--accent); font-size: 10px; letter-spacing: .12em; font-weight: 700; }
+.account-dialog h2 { font-size: 23px; margin: 4px 0 0; }
+.account-dialog-main { display: grid; gap: 13px; padding: 20px 22px; }
+.account-dialog form { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; padding: 12px; border: 1px solid var(--edge); border-radius: 9px; }
+.account-dialog label { display: grid; flex: 1 0 100%; gap: 4px; color: var(--muted, var(--ink)); margin: 0; font-weight: 600; }
+.account-dialog input { width: 100%; padding: 9px 10px; background: var(--chrome); border: 1px solid var(--edge); border-radius: 7px; color: var(--ink); font: inherit; }
+.account-dialog button { border: 1px solid var(--edge); background: var(--chrome); color: var(--ink); padding: 7px 10px; border-radius: 7px; font: inherit; cursor: pointer; }
+.account-dialog button:hover { background: var(--hover); }
+.account-dialog button.primary { background: var(--accent); color: var(--panel); font-weight: 650; }
+.account-dialog button.danger { color: var(--danger, #bc4444); }
+.account-dialog button:disabled { opacity: .5; cursor: default; }
+.account-dialog .account-error { color: var(--danger, #bc4444); margin: 0 22px 8px; }
+.account-dialog .account-error:empty { display: none; }
+.account-dialog footer { border-top: 1px solid var(--edge); display: flex; justify-content: flex-end; }
+.account-identity, .account-project-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.account-identity { justify-content: space-between; }
+.account-project-list { display: grid; gap: 7px; }
+.account-project-row { padding: 10px; border: 1px solid var(--edge); border-radius: 8px; }
+.account-project-row > div { flex: 1 1 140px; display: grid; overflow-wrap: anywhere; }
+.account-project-row small { color: var(--muted, var(--ink)); }

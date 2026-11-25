@@ -44,6 +44,12 @@ export class UndoManager {
         }
     }
 
+    public resetHistory() {
+        this._undoSnapshots = []
+        this._redoSnapshots = []
+        this.takeSnapshot(undefined, true)
+    }
+
     public canUndo() {
         return this._undoSnapshots.length > 1 // the first snapshot is the initial state which cannot be undone
     }

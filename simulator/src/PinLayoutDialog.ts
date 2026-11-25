@@ -95,8 +95,122 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     let drag: PinDrag | undefined
     let currentDef = makeDef(draft)
     let allEntries: ExternalPinLayout = []
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const spring = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, angle: 0, av: 0, scale: 1, sv: 0 }
+    let frame = 0
+    let lastFrame = 0
+    let settling = false
+    let settleStarted = 0
+    let sourceElement: Element | undefined
+    let landingElement: Element | undefined
+
+    function stopMotion() {
+        if (frame !== 0) cancelAnimationFrame(frame)
+        frame = 0
+        lastFrame = 0
+        settling = false
+        ghost.hidden = true
+        ghost.classList.remove("is-settling")
+        sourceElement?.classList.remove("pin-drag-source")
+        sourceElement = undefined
+        landingElement?.classList.remove("pin-landing")
+        landingElement = undefined
+    }
+
+    function paintGhost() {
+        ghost.style.transform = "translate3d(" + spring.x + "px," + spring.y + "px,0) rotate(" + spring.angle + "deg) scale(" + spring.scale + ")"
+    }
+
+    function tick(now: number) {
+        frame = 0
+        if (ghost.hidden || !dialog.isConnected) { stopMotion(); return }
+        // Damped spring with bounded substeps; drop hit testing uses the actual pointer.
+        let dt = lastFrame === 0 ? 1 / 60 : Math.min(.05, (now - lastFrame) / 1000)
+        lastFrame = now
+        while (dt > 0) {
+            const step = Math.min(dt, 1 / 120)
+            dt -= step
+            const stiffness = settling ? 390 : 520
+            const damping = settling ? 30 : 36
+            spring.vx += ((spring.tx - spring.x) * stiffness - spring.vx * damping) * step
+            spring.vy += ((spring.ty - spring.y) * stiffness - spring.vy * damping) * step
+            spring.x += spring.vx * step
+            spring.y += spring.vy * step
+            const tilt = settling ? 0 : Math.max(-8, Math.min(8, spring.vx * .012))
+            spring.av += ((tilt - spring.angle) * 220 - spring.av * 23) * step
+            spring.angle += spring.av * step
+            const scale = settling ? .72 : 1.04
+            spring.sv += ((scale - spring.scale) * 300 - spring.sv * 25) * step
+            spring.scale += spring.sv * step
+        }
+        paintGhost()
+        if (settling && ((Math.hypot(spring.tx - spring.x, spring.ty - spring.y) < 1.5 && Math.hypot(spring.vx, spring.vy) < 15) || now - settleStarted > 500)) {
+            const landed = landingElement
+            stopMotion()
+            landed?.animate([{ opacity: .65 }, { opacity: 1 }], { duration: 150, easing: "ease-out" })
+            return
+        }
+        frame = requestAnimationFrame(tick)
+    }
+
+    function trackGhost(x: number, y: number) {
+        spring.tx = x + 14
+        spring.ty = y + 14
+        if (reducedMotion.matches) {
+            spring.x = spring.tx
+            spring.y = spring.ty
+            spring.angle = 0
+            spring.scale = 1
+            paintGhost()
+        } else if (frame === 0) {
+            frame = requestAnimationFrame(tick)
+        }
+    }
+
+    function settleGhost(destination: Element | undefined) {
+        if (destination === undefined || reducedMotion.matches || ghost.hidden) { stopMotion(); return }
+        const rect = destination.getBoundingClientRect()
+        spring.tx = rect.left + (rect.width - ghost.offsetWidth) / 2
+        spring.ty = rect.top + (rect.height - ghost.offsetHeight) / 2
+        settling = true
+        settleStarted = performance.now()
+        ghost.classList.add("is-settling")
+        landingElement = destination
+        destination.classList.add("pin-landing")
+        if (frame === 0) frame = requestAnimationFrame(tick)
+    }
+
+    function pinRow(id: string) {
+        return [...groups.querySelectorAll<HTMLElement>("[data-pin-id]")].find(row => row.dataset.pinId === id)
+    }
+
+    function previewPin(id: string) {
+        return [...preview.querySelectorAll<SVGElement>("[data-preview-pin]")].find(pin => pin.getAttribute("data-preview-pin") === id)
+    }
+
+    function animateRows(before: Map<string, DOMRect>, moved: string) {
+        if (reducedMotion.matches) return
+        for (const row of groups.querySelectorAll<HTMLElement>("[data-pin-id]")) {
+            const id = row.dataset.pinId
+            if (id === undefined || id === moved) continue
+            const old = before.get(id)
+            if (old === undefined) continue
+            const rect = row.getBoundingClientRect()
+            const dx = old.left - rect.left, dy = old.top - rect.top
+            if (Math.abs(dx) + Math.abs(dy) < 1) continue
+            row.animate([
+                { transform: "translate(" + dx + "px," + dy + "px)" },
+                { transform: "translate(" + (-dx * .05) + "px," + (-dy * .05) + "px)", offset: .78 },
+                { transform: "translate(0,0)" },
+            ], { duration: 250, easing: "cubic-bezier(.2,.75,.3,1)" })
+        }
+    }
 
     function movePin(id: string, target: DropTarget) {
+        const before = new Map<string, DOMRect>()
+        for (const row of groups.querySelectorAll<HTMLElement>("[data-pin-id]")) {
+            if (row.dataset.pinId !== undefined) before.set(row.dataset.pinId, row.getBoundingClientRect())
+        }
         const entries = allEntries.filter(entry => entry.id !== id)
         const sameSide = entries.filter(entry => entry.side === target.side)
         const next = sameSide[target.index]
@@ -104,11 +218,21 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
         entries.splice(index, 0, { id, side: target.side })
         draft = entries
         render()
+        animateRows(before, id)
     }
 
     function startDrag(e: PointerEvent, id: string, label: string) {
         if (e.button !== 0 || !e.isPrimary || drag !== undefined) return
         e.preventDefault()
+        stopMotion()
+        for (const row of groups.querySelectorAll<HTMLElement>("[data-pin-id]")) {
+            for (const animation of row.getAnimations()) animation.cancel()
+        }
+        sourceElement = e.currentTarget instanceof Element ? e.currentTarget : undefined
+        spring.x = spring.tx = e.clientX + 14
+        spring.y = spring.ty = e.clientY + 14
+        spring.vx = spring.vy = spring.angle = spring.av = spring.sv = 0
+        spring.scale = .96
         drag = { id, pointer: e.pointerId, x: e.clientX, y: e.clientY, label, started: false, target: undefined }
         dialog.setPointerCapture(e.pointerId)
     }
@@ -173,32 +297,45 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     dialog.addEventListener("pointermove", e => {
         if (drag === undefined || drag.pointer !== e.pointerId) return
         if (!drag.started && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) return
-        drag.started = true
-        dialog.classList.add("pin-layout-dragging")
-        ghost.hidden = false
-        ghost.textContent = drag.label
-        ghost.style.left = (e.clientX + 14) + "px"
-        ghost.style.top = (e.clientY + 14) + "px"
-        drag.target = findTarget(e.clientX, e.clientY, drag.id)
-        showTarget(drag.target)
+        if (!drag.started) {
+            drag.started = true
+            dialog.classList.add("pin-layout-dragging")
+            sourceElement?.classList.add("pin-drag-source")
+            ghost.hidden = false
+            ghost.textContent = drag.label
+            paintGhost()
+            showTarget(undefined)
+        }
+        trackGhost(e.clientX, e.clientY)
+        const target = findTarget(e.clientX, e.clientY, drag.id)
+        if (target?.side !== drag.target?.side || target?.index !== drag.target?.index) {
+            drag.target = target
+            showTarget(target)
+        }
     })
 
     function finishDrag(e: PointerEvent, commit: boolean) {
         if (drag === undefined || drag.pointer !== e.pointerId) return
         const previous = drag
         const target = commit && previous.started ? findTarget(e.clientX, e.clientY, previous.id) : undefined
+        const fromPreview = sourceElement?.classList.contains("pin-preview-handle") ?? false
+        const box = preview.getBoundingClientRect()
+        const toPreview = e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom
         drag = undefined
-        ghost.hidden = true
         dialog.classList.remove("pin-layout-dragging")
         showTarget(undefined)
         dropHint.textContent = "Attrapez une broche pour la déplacer."
         if (dialog.hasPointerCapture(e.pointerId)) dialog.releasePointerCapture(e.pointerId)
+        sourceElement?.classList.remove("pin-drag-source")
+        if (!previous.started) { stopMotion(); return }
         if (target !== undefined) movePin(previous.id, target)
+        const destination = (target !== undefined ? toPreview : fromPreview) ? previewPin(previous.id) : pinRow(previous.id)
+        settleGhost(destination)
     }
     dialog.addEventListener("pointerup", e => finishDrag(e, true))
     dialog.addEventListener("pointercancel", e => finishDrag(e, false))
     dialog.addEventListener("lostpointercapture", e => finishDrag(e, false))
-    dialog.addEventListener("close", () => { drag = undefined; dialog.remove(); onClose() }, { once: true })
+    dialog.addEventListener("close", () => { drag = undefined; stopMotion(); dialog.remove(); onClose() }, { once: true })
 
     function render() {
         const def = currentDef = makeDef(draft)
@@ -301,7 +438,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
             const dy = pin.orient === "n" ? -1 : pin.orient === "s" ? 1 : 0
             const color = pin.isIn ? "var(--pin-input)" : "var(--pin-output)"
             const label = pin.name + (pin.numBits > 1 ? " [" + pin.numBits + "]" : "")
-            const group = shape("g", { class: "pin-preview-handle" })
+            const group = shape("g", { class: "pin-preview-handle", "data-preview-pin": pin.id })
             shape("title", {}, label + " — glisser pour déplacer", group)
             shape("line", { x1: px - 12 * dx, y1: py - 12 * dy, x2: px, y2: py, stroke: color, "stroke-width": pin.numBits > 1 ? 4 : 2 }, undefined, group)
             shape("circle", { cx: px, cy: py, r: 9, fill: color, "fill-opacity": .13, class: "pin-preview-hit" }, undefined, group)

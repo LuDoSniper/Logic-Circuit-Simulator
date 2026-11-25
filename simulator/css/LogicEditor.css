@@ -971,3 +971,25 @@ svg text {
   .pin-layout-preview svg { min-height: 200px; max-height: 320px; }
   .pin-layout-footer { flex-wrap: wrap; }
 }
+
+/* Motion is presentation-only: hit testing follows the real pointer. */
+.pin-layout-drag-ghost {
+  left: 0; top: 0; transform-origin: center; will-change: transform, opacity;
+  box-shadow: 0 9px 24px #0004; transition: opacity 140ms ease;
+}
+.pin-layout-drag-ghost.is-settling { opacity: .65; }
+.pin-layout-row, .pin-preview-handle { transition: opacity 150ms ease, background-color 150ms ease, border-color 150ms ease; }
+.pin-layout-row.pin-drag-source, .pin-preview-handle.pin-drag-source { opacity: .35; }
+.pin-drop-zone { transition: fill-opacity 150ms ease, stroke-opacity 150ms ease, stroke-width 150ms ease; }
+.pin-layout-groups section { transition: background-color 150ms ease, border-color 150ms ease; }
+.pin-layout-row.pin-drop-before::before, .pin-layout-groups section.pin-drop-end::after {
+  animation: pin-insertion-appear 170ms cubic-bezier(.2,.8,.3,1.2) both;
+  transform-origin: center;
+}
+@keyframes pin-insertion-appear { from { opacity: .3; transform: scaleX(.35); } to { opacity: 1; transform: scaleX(1); } }
+.pin-layout-row.pin-landing { border-color: var(--accent); }
+.pin-preview-handle.pin-landing .pin-preview-hit { fill-opacity: .55; }
+@media (prefers-reduced-motion: reduce) {
+  .pin-layout-drag-ghost, .pin-layout-row, .pin-preview-handle, .pin-drop-zone, .pin-layout-groups section { transition: none; }
+  .pin-layout-row.pin-drop-before::before, .pin-layout-groups section.pin-drop-end::after { animation: none; }
+}

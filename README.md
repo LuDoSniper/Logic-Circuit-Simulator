@@ -50,3 +50,7 @@ See <https://jp.pellet.name/hep/logiga/>
 ## License
 
 [MIT License](https://choosealicense.com/licenses/mit/)
+
+## Remaster accounts and projects
+
+Use Node.js 24 LTS or newer (built-in SQLite). Run `npm ci`, `npm run compile`, `npm run bundle`, then `npm run server`. Open http://localhost:8088. No separate DB installation is required. `npm run test:server` runs the API integration tests. The old static server (`npm run server:static`) works in guest mode only. The database defaults to `data/logic.sqlite`; back it up securely, including WAL state (use SQLite backup or stop the server first). Set `LOGIC_DB` to override its location. For deployment behind an HTTPS reverse proxy, set `NODE_ENV=production`, `APP_ORIGIN=https://your-domain`, `HOST=127.0.0.1` (or your private interface), and `PORT` as needed. Only public assets are served; keep the database private. Sessions last 30 days. Account registration is open; email verification and password reset are not implemented yet.

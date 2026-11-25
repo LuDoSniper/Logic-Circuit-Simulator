@@ -4,3 +4,8 @@ node_modules
 /simulator/lib
 /index*.html
 /deploy*.sh
+
+/data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

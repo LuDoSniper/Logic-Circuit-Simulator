@@ -468,6 +468,7 @@ export class UIEventManager {
             if (middlePan === undefined) return
             middlePan = undefined
             editor.setToolCursor(null)
+            editor.updateCursor()
             editor.finishAutoZoomTranslationIfActive()
         }
         canvas.addEventListener("lostpointercapture", editor.wrapHandler(e => {
@@ -486,6 +487,7 @@ export class UIEventManager {
                     canvas.setPointerCapture(e.pointerId)
                     middlePan = { id: e.pointerId, x: e.clientX, y: e.clientY, tx: editor.translationX, ty: editor.translationY }
                     editor.setToolCursor("grabbing")
+                    editor.updateCursor(e)
                     this.clearTooltipIfNeeded()
                 }
                 return
@@ -588,11 +590,13 @@ export class UIEventManager {
         canvas.onwheel = editor.wrapHandler(e => {
             let handled = false
             if (editor.mode >= Mode.CONNECT) {
-                const isZoomGesture = e.ctrlKey || e.metaKey
+                const isZoomGesture = e.ctrlKey || e.metaKey || (editor.isSingleton && !e.altKey && !LogicEditor.spaceDown)
                 if (isZoomGesture) {
                     // Calculate zoom factor based on deltaY
-                    const delta = -e.deltaY
-                    const zoomFactor = 1 + delta * 0.005
+                    // Normalize wheel units and use exponential scaling for smooth, reversible zoom.
+                    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? canvas.clientHeight : 1
+                    const delta = Math.max(-500, Math.min(500, e.deltaY * unit))
+                    const zoomFactor = Math.exp(-delta * 0.0025)
                     const oldZoom = editor.userDrawingScale * 100
                     const [oldCenterX, oldCenterY] = editor.offsetXY(e, false)
                     const [newCenterX, newCenterY] = editor.offsetXY(e, true)

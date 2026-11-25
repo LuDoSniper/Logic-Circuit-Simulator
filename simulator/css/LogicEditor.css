@@ -805,3 +805,83 @@ svg text {
 #logicEditorRoot #leftToolbar .list-group-item:hover { background: var(--hover); }
 #logicEditorRoot .remaster-theme-button { min-width: 30px; font-size: 18px; color: var(--ink); background: transparent; border: 1px solid var(--edge); cursor: pointer; }
 #logicEditorRoot .remaster-theme-button:focus-visible { outline: 2px solid var(--accent); }
+
+/* Standalone workbench: spacious component library and consistent surfaces. */
+#logicEditorRoot.remaster-workspace {
+  --chrome: #f8fafc; --panel: #ffffff; --edge: #e2e8f0; --ink: #18263a;
+  --muted: #64748b; --hover: #edf3fa; --accent: #2563eb; --selected: #e0eaff;
+  --shadow: 0 8px 28px rgba(15, 23, 42, .12); --danger: #b91c1c;
+  background: var(--chrome); color: var(--ink);
+}
+#logicEditorRoot.remaster-workspace.dark {
+  --chrome: #151b25; --panel: #1b2330; --edge: #303d4e; --ink: #e5edf7;
+  --muted: #a3b3c8; --hover: #29384b; --accent: #93baff; --selected: #263e60;
+  --shadow: 0 10px 32px rgba(0,0,0,.35); --danger: #fca5a5;
+}
+.remaster-fallback-label { display: none; }
+.remaster-workspace #centerCol { min-width: 0; }
+#logicEditorRoot.remaster-workspace #leftToolbar {
+  width: 176px; min-width: 176px !important; max-width: 176px !important;
+  overflow-y: auto !important; overflow-x: hidden; scrollbar-width: thin;
+  padding: 0 9px 12px; border: 0; border-right: 1px solid var(--edge);
+  background: var(--panel);
+}
+.remaster-workspace #leftToolbar::before {
+  content: "LOGIC / REMASTER"; display: block; flex: none; position: sticky; top: 0; z-index: 2;
+  background: var(--panel); color: var(--accent); padding: 17px 3px 14px;
+  font-size: 11px; font-weight: 750; letter-spacing: .085em; border-bottom: 1px solid var(--edge);
+}
+#logicEditorRoot.remaster-workspace .leftToolbarHeader {
+  flex: none; text-align: left; background: transparent; color: var(--muted);
+  text-transform: uppercase; font-size: 10px; letter-spacing: .09em; font-weight: 700;
+  padding: 12px 5px 6px;
+}
+#logicEditorRoot.remaster-workspace #leftToolbar .sim-component-button {
+  flex: none; flex-direction: row; justify-content: flex-start; gap: 9px; padding: 7px 6px;
+  border: 0; border-radius: 7px; margin: 0; width: 100%; text-align: left;
+  background: transparent; color: var(--ink); cursor: grab;
+}
+#logicEditorRoot.remaster-workspace #leftToolbar .sim-component-button:hover { background: var(--hover); }
+.remaster-workspace .sim-component-button > i.svgimg { flex: 0 0 34px; max-width: 34px; }
+#logicEditorRoot.remaster-workspace #leftToolbar .barLabel {
+  display: block; text-align: left; font: 500 11px/1.3 "Segoe UI", system-ui, sans-serif;
+  color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: normal;
+}
+.remaster-workspace .leftToolbarMore { text-align: left; padding: 5px 6px; color: var(--muted); font-style: normal; opacity: 1; }
+#logicEditorRoot.remaster-workspace .topBar { border: 0; border-bottom: 1px solid var(--edge); background: var(--panel); gap: 4px; }
+#logicEditorRoot.remaster-workspace .topBar * { font-family: "Segoe UI", system-ui, sans-serif; color: inherit; }
+#logicEditorRoot.remaster-workspace .topBar button { padding: 5px 8px; border-radius: 7px; color: var(--muted); }
+#logicEditorRoot.remaster-workspace .topBar button:disabled { opacity: .4; }
+#logicEditorRoot.remaster-workspace .topBar button:not(:disabled):hover { color: var(--ink); background: var(--hover); }
+#logicEditorRoot.remaster-workspace .topBar button.active { color: var(--accent); background: var(--selected); box-shadow: none; }
+#logicEditorRoot.remaster-workspace .topBar .sep { border-left: 1px solid var(--edge); margin: 3px 2px; }
+#logicEditorRoot.remaster-workspace .topBar .barTab { margin: 0; border: 1px solid transparent; border-radius: 7px; }
+#logicEditorRoot.remaster-workspace .topBar .barTab.active { background: var(--selected); border: 1px solid var(--edge); color: var(--ink); }
+.remaster-workspace .topBar input { border: 1px solid var(--edge); border-radius: 6px; padding: 3px; }
+#logicEditorRoot.remaster-workspace .remaster-theme-button { border: 1px solid var(--edge); min-width: 34px; }
+#logicEditorRoot.remaster-workspace .sim-toolbar-right,
+#logicEditorRoot.remaster-workspace .menu,
+#logicEditorRoot.remaster-workspace dialog {
+  background: var(--panel); color: var(--ink); border: 1px solid var(--edge);
+  border-radius: 10px; box-shadow: var(--shadow);
+}
+.remaster-workspace .menu { padding: 5px; min-width: 210px; }
+.remaster-workspace .menu-btn { color: var(--ink); font-family: inherit; border-radius: 6px; padding: 8px 10px; }
+.remaster-workspace .menu-item:hover > .menu-btn { background: var(--selected); color: var(--ink); border-color: transparent; }
+.remaster-workspace .menu-item:hover > .menu-btn.danger { background: var(--hover); color: var(--danger); }
+.remaster-workspace .menu-item:hover > .menu-btn.success { background: var(--hover); color: var(--ink); }
+.remaster-workspace .menu-shortcut, .remaster-workspace .menu-item-static { color: var(--muted); }
+.remaster-workspace .menu-separator { border: 0; background: var(--edge); margin: 4px; }
+.remaster-workspace .sim-toolbar-right .toolbar-title, .remaster-workspace .sim-toolbar-right .close-palette { color: var(--muted); }
+.remaster-workspace #tooltip { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); box-shadow: var(--shadow); border-radius: 8px; padding: 9px; opacity: 1; }
+.remaster-workspace #tooltip .truth-table { color: var(--ink); }
+.remaster-workspace .msgZone .msgBar { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); box-shadow: var(--shadow); }
+.remaster-workspace button:focus-visible, .remaster-workspace a:focus-visible, .remaster-workspace input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 760px) {
+  #logicEditorRoot.remaster-workspace #leftToolbar { width: 64px; min-width: 64px !important; max-width: 64px !important; padding: 0 4px; }
+  .remaster-workspace #leftToolbar::before { content: "LOGIC"; text-align: center; }
+  #logicEditorRoot.remaster-workspace #leftToolbar .sim-component-button { flex-direction: column; gap: 2px; }
+  #logicEditorRoot.remaster-workspace #leftToolbar .barLabel { max-width: 100%; font-size: 8px; }
+  #logicEditorRoot.remaster-workspace .leftToolbarHeader { font-size: 8px; text-align: center; overflow-wrap: anywhere; }
+  #logicEditorRoot.remaster-workspace .topBar button { padding: 4px; }
+}

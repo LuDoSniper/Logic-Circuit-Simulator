@@ -452,7 +452,7 @@ function makeButton(typeStr: string, normallyHidden: boolean, componentIds: stri
     const buttonStyle = !hiddenNow ? "" : "max-height: 0; transition: all 0.25s ease-out; overflow: hidden; padding: 0; border: 0; margin-bottom: 0;"
     const extraClasses = hiddenNow ? " sim-component-button-extra" : ""
     const customClasses = isCustom ? " sim-component-button-custom" : ""
-    const caption = captionStr === undefined ? emptyMod : span(cls("barLabel"), captionStr)
+    const caption = captionStr === undefined ? span(cls("barLabel remaster-fallback-label"), (titleStr ?? componentIds[0]).split("\n")[0]) : span(cls("barLabel"), captionStr)
     const buttonTitle = title(titleStr === undefined ? "" : (titleStr + " \n") + `(“${componentIds[0]}”)`)
     const compButton = button(
         type("button"), style(buttonStyle),

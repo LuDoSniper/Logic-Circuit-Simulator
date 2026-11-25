@@ -133,7 +133,7 @@ export class TopBar {
         ))
 
         this.root =
-            div(cls("topBar"), style("flex:none; height: 42px; padding: 5px 8px; display: flex; align-items: stretch;"),
+            div(cls("topBar"), style("flex:none; height: 48px; padding: 7px 10px; display: flex; align-items: stretch;"),
                 this.circuitNameGroup,
 
                 this.undoButton,
@@ -176,9 +176,15 @@ export class TopBar {
             const themeButton = document.createElement("button")
             themeButton.type = "button"
             themeButton.className = "remaster-theme-button"
+            const themeIcon = document.createElement("span")
+            themeIcon.setAttribute("aria-hidden", "true")
+            const themeLabel = document.createElement("span")
+            themeLabel.className = "btnLabel"
+            themeButton.append(themeIcon, themeLabel)
             const refresh = () => {
                 const preference = editor.themePreference
-                themeButton.textContent = preference === "system" ? "◐" : preference === "dark" ? "☾" : "☀"
+                themeIcon.textContent = preference === "system" ? "◐" : preference === "dark" ? "☾" : "☀"
+                themeLabel.textContent = preference === "system" ? "Auto" : preference === "dark" ? "Dark" : "Light"
                 themeButton.title = `Theme: ${preference} (click to switch)`
                 themeButton.setAttribute("aria-label", themeButton.title)
             }

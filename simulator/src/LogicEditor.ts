@@ -596,6 +596,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         }
 
         if (this._isSingleton) {
+            this.html.rootDiv.classList.add("remaster-workspace")
             // console.log("LogicEditor is in singleton mode")
 
             // singletons manage their dark mode according to system settings

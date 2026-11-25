@@ -642,7 +642,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
             this.html.canvasContainer.insertAdjacentElement("afterbegin", madeBy)
 
             window.onbeforeunload = e => {
-                if (this._isSingleton && this.mode >= Mode.CONNECT && (this._accountWorkspace?.hasProject ? this._accountWorkspace.hasUnsavedChanges : this._isDirty)) {
+                if (this._isSingleton && (this._accountWorkspace?.hasProject ? this._accountWorkspace.hasUnsavedChanges : this._isDirty && this.mode >= Mode.CONNECT)) {
                     e.preventDefault() // ask to save changes
                     e.returnValue = S.Messages.ReallyCloseWindow
                 }
@@ -1719,7 +1719,11 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         const backup = JSON.parse(JSON.stringify(this.save())) as Circuit
         const load = (data: Circuit) => {
             this.setEditorRoot(this)
-            this.userdata = undefined
+            this.eventMgr.currentSelection = undefined
+            this.eventMgr.setCurrentComponentUnderPointer(null)
+            this.eventMgr.clearTooltipIfNeeded()
+            this.editTools.moveMgr.clear()
+            this.userdata = data.userdata === undefined ? undefined : JSON.parse(JSON.stringify(data.userdata))
             const error = Serialization.loadCircuitOrLibrary(this, JSON.parse(JSON.stringify(data)), PostLoadActions_None)
             if (error !== undefined) throw new Error(error)
         }
@@ -1764,10 +1768,11 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
     }
 
     public loadCircuitOrLibrary(jsonStringOrObject: string | Record<string, unknown>) {
-        this.wrapHandler(
+        const error = this.wrapHandler(
             (jsonStringOrObject: string | Record<string, unknown>) =>
                 Serialization.loadCircuitOrLibrary(this, jsonStringOrObject, PostLoadActions_SnapshotStorage)
         )(jsonStringOrObject)
+        if (error === undefined && this._accountWorkspace?.hasProject) this._accountWorkspace.queue(this.save())
     }
 
     public makeGroupWithSelection(): boolean {

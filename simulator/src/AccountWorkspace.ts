@@ -9,7 +9,7 @@ class ApiError extends Error {
 }
 async function api<T>(path: string, method = "GET", data?: unknown): Promise<T> {
     const response = await fetch("/api/" + path, {
-        method, credentials: "same-origin", cache: "no-store",
+        method, credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(20000),
         ...(data === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }),
     })
     let result
@@ -64,7 +64,7 @@ export class AccountWorkspace {
     private refreshStatus() {
         const title = !this.available ? "Mode local" : this.active
             ? (this.conflict ? "Conflit de sauvegarde" : this.problem ? "Non sauvegardé" : this.pending || this.inFlight ? "Sauvegarde…" : "Synchronisé")
-            : this.user ? "Mes projets" : "Se connecter"
+            : this.user ? "Choisir un projet" : "Se connecter"
         this.status.textContent = title
         this.button.dataset.state = this.conflict || this.problem ? "error" : this.pending || this.inFlight ? "saving" : this.active ? "saved" : "guest"
         this.button.title = this.active ? this.active.name + " — " + (this.problem ?? title) : title
@@ -257,7 +257,7 @@ export class AccountWorkspace {
             main.replaceChildren()
             heading.textContent = this.expired ? "Session expirée" : register ? "Créer un compte" : "Connexion"
             const text = document.createElement("p")
-            text.textContent = this.expired ? "Reconnectez-vous pour conserver vos modifications." : "Vos circuits et composants restent accessibles sur tous vos appareils."
+            text.textContent = this.expired ? "Reconnectez-vous pour conserver vos modifications." : "Vos circuits et composants restent accessibles sur tous vos appareils. Si votre compte ne possède aucun projet, le circuit actuel sera enregistré comme premier projet."
             const form = document.createElement("form")
             const email = labelInput("Adresse email", "email", this.expired ? this.user?.email ?? "" : "")
             email.field.autocomplete = "email"
@@ -281,6 +281,14 @@ export class AccountWorkspace {
                     this.expired = false
                     this.problem = undefined
                     if (this.active) await this.flush()
+                    else {
+                        const { projects } = await api<{ projects: ProjectSummary[] }>("projects")
+                        if (projects.length === 0) {
+                            await this.createProject(this.editor.documentDisplayName || "Mon circuit", true)
+                            dialog.close()
+                            return
+                        }
+                    }
                     await renderProjects()
                 })
             })
@@ -300,6 +308,11 @@ export class AccountWorkspace {
             email.textContent = this.user.email
             identity.append(email, this.makeButton("Déconnexion", () => { void run(async () => { await this.logout(); renderAuth() }) }))
             main.append(identity)
+            if (!this.active) {
+                const notice = document.createElement("p")
+                notice.textContent = "Le circuit actuel reste local tant que vous n’avez pas ouvert ou créé un projet."
+                main.append(notice)
+            }
             if (this.problem) {
                 const warning = document.createElement("p")
                 warning.className = "account-error"

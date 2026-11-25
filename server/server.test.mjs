@@ -19,7 +19,7 @@ test("registration, session, project isolation, revisions, logout and CSRF", asy
         assert.match(a.cookie,/HttpOnly/)
         cookie=a.cookie.split(";")[0]
         assert.equal((await req("/api/session")).data.user.email,"a@example.com")
-        const c={v:6,components:{},wires:[]}
+        const c={v:8,components:{},wires:[]}
         const created=await req("/api/projects","POST",{name:"CPU",circuit:c})
         assert.equal(created.status,201)
         const id=created.data.project.id

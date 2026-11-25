@@ -230,14 +230,14 @@ export class TestSuiteUI {
         })
         const container = div(cls("testcase wait"), line, details).render()
 
-        editButton.addEventListener("click", e => {
+        editButton.addEventListener("click", async e => {
             e.stopPropagation()
             if (!UIPermissions.canModifyTestCases(this.editor)) {
                 // button should be hidden anyway
-                window.alert(S.Messages.NoPermission)
+                void this.editor.appAlert(S.Messages.NoPermission)
                 return
             }
-            const newName = window.prompt(s.EnterNewTestCaseName, testCase.name ?? "")
+            const newName = await this.editor.appPrompt(s.EnterNewTestCaseName, testCase.name ?? "")
             if (newName === null || newName.length === 0) {
                 return
             }
@@ -247,7 +247,7 @@ export class TestSuiteUI {
         deleteButton.addEventListener("click", e => {
             if (!UIPermissions.canModifyTestCases(this.editor)) {
                 // button should be hidden anyway
-                window.alert(S.Messages.NoPermission)
+                void this.editor.appAlert(S.Messages.NoPermission)
                 return
             }
             this.editor.removeTestCase(testCase)

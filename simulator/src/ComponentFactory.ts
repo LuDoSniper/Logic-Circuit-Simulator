@@ -367,21 +367,21 @@ export class ComponentFactory {
         return [
             MenuData.item("pen", s.ChangeName, () => this.runChangeCustomComponentCaptionDialog(def)),
             MenuData.item("connect", s.ChangeCircuit, () => {
-                window.alert(s.EditFromComponentMessage)
+                void this.editor.appAlert(s.EditFromComponentMessage)
             }),
             MenuData.sep(),
-            MenuData.item("trash", s.Delete, () => {
+            MenuData.item("trash", s.Delete, async () => {
                 if (this.editor.components.contains(id)) {
-                    window.alert(s.CannotDeleteInUse)
+                    void this.editor.appAlert(s.CannotDeleteInUse)
                     return
                 }
                 for (const compDef of this._customComponents.values()) {
                     if (compDef.uses(def.type, false)) {
-                        window.alert(s.CannotDeleteInUseBy.expand({ caption: compDef.caption }))
+                        void this.editor.appAlert(s.CannotDeleteInUseBy.expand({ caption: compDef.caption }))
                         return
                     }
                 }
-                if (window.confirm(s.ConfirmDelete)) {
+                if (await this.editor.appConfirm(s.ConfirmDelete, true, "Supprimer")) {
                     this._customComponents.delete(customId)
                     this.editor.updateCustomComponentButtons()
                 }
@@ -389,18 +389,18 @@ export class ComponentFactory {
         ]
     }
 
-    public runChangeCustomComponentCaptionDialog(def: CustomComponentDef) {
+    public async runChangeCustomComponentCaptionDialog(def: CustomComponentDef) {
         const s = S.Components.Custom.contextMenu
         const oldCaption = def.caption
         const oldType = def.type
         // eslint-disable-next-line no-constant-condition
         while (true) {
-            const newCaption = window.prompt(s.ChangeNamePrompt, oldCaption)
+            const newCaption = await this.editor.appPrompt(s.ChangeNamePrompt, oldCaption)
             if (newCaption === null || newCaption === oldCaption) {
                 return
             }
             if (newCaption.length === 0) {
-                window.alert(s.ChangeNameEmpty)
+                await this.editor.appAlert(s.ChangeNameEmpty)
                 continue
             }
 
@@ -434,7 +434,7 @@ export class ComponentFactory {
         this.editor.focus()
     }
 
-    public tryMakeNewCustomComponent(editor: LogicEditor): CustomComponentDef | string {
+    public async tryMakeNewCustomComponent(editor: LogicEditor): Promise<CustomComponentDef | string> {
         const s = S.Components.Custom.messages
 
         const selectionAll = editor.eventMgr.currentSelection?.previouslySelectedElements
@@ -456,7 +456,7 @@ export class ComponentFactory {
         let caption
         const labels = componentsToInclude.filter((e): e is Label => e instanceof Label)
         if (labels.length !== 1) {
-            caption = window.prompt(s.EnterCaptionPrompt)
+            caption = await editor.appPrompt(s.EnterCaptionPrompt)
             if (caption === null) {
                 return ""
             }
@@ -584,7 +584,7 @@ export class ComponentFactory {
         }
 
         const numCases = Math.pow(2, numInputs)
-        if (!confirm(s.AutoTestCasesWarning.expand({ numInputs, numCases }))) {
+        if (!await editor.appConfirm(s.AutoTestCasesWarning.expand({ numInputs, numCases }))) {
             return ""
         }
 

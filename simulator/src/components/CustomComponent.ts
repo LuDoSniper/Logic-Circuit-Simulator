@@ -502,12 +502,12 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
 
         let showOnly
         if (!UIPermissions.canModifyCustomComponents(this.editor) || (showOnly = this.editor.options.showOnly) !== undefined && !showOnly.includes(this._customDef.id)) {
-            alert(s.CannotBeModified)
+            void this.editor.appAlert(s.CannotBeModified)
             return InteractionResult.NoChange
         }
 
         if (!(this.editor.editorRoot instanceof LogicEditor)) {
-            alert(s.NotInMainEditor)
+            void this.editor.appAlert(s.NotInMainEditor)
             return InteractionResult.NoChange
         }
 

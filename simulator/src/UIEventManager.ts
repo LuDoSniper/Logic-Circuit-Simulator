@@ -1134,7 +1134,7 @@ export class UIEventManager {
     public tryDeleteDrawable(comp: Drawable): InteractionResult {
         if (comp instanceof ComponentBase) {
             if (comp.lockPos) {
-                window.alert(S.Messages.CannotDeleteLockedComponent)
+                void this.editor.appAlert(S.Messages.CannotDeleteLockedComponent)
                 return InteractionResult.NoChange
             }
             const ref = comp.ref
@@ -1305,11 +1305,11 @@ class EditHandlers extends ToolHandlers {
         // some generic menu items on selections with multiple components
         const makeNewComponentItems: MenuData =
             (!isMainEditor || !UIPermissions.canModifyCustomComponents(editor)) ? [] : [
-                MenuData.item("newcomponent", s.MakeNewComponent, () => {
-                    const result = editor.factory.tryMakeNewCustomComponent(editor)
+                MenuData.item("newcomponent", s.MakeNewComponent, async () => {
+                    const result = await editor.factory.tryMakeNewCustomComponent(editor)
                     if (isString(result)) {
                         if (result.length > 0) {
-                            window.alert(s.MakeNewComponentFailed + " " + result)
+                            void this.editor.appAlert(s.MakeNewComponentFailed + " " + result)
                         }
                     } else {
                         editor.options.showOnly?.push(result.id)
@@ -1324,7 +1324,7 @@ class EditHandlers extends ToolHandlers {
                     const result = editor.factory.tryMakeNewTestCase(editor)
                     if (isString(result)) {
                         if (result.length > 0) {
-                            window.alert(s.MakeNewTestCaseFailed + " " + result)
+                            void this.editor.appAlert(s.MakeNewTestCaseFailed + " " + result)
                         }
                         return
                     }
@@ -1334,7 +1334,7 @@ class EditHandlers extends ToolHandlers {
                     const result = await editor.factory.tryMakeAllTestCases(editor)
                     if (isString(result)) {
                         if (result.length > 0) {
-                            window.alert(s.MakeNewTestCaseFailed + " " + result)
+                            void this.editor.appAlert(s.MakeNewTestCaseFailed + " " + result)
                         }
                         return
                     }

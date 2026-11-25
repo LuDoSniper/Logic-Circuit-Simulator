@@ -167,9 +167,10 @@ export class AccountWorkspace {
         if (this.pending) await this.flush()
     }
 
-    public resetProject() {
-        if (!this.active || !window.confirm("Vider le circuit de ce projet ? Vous pourrez annuler cette action.")) return
-        this.editor.replaceWorkspaceCircuit(this.empty(this.active.name), false)
+    public async resetProject() {
+        const active = this.active
+        if (!active || !await this.editor.appConfirm("Vider le circuit de ce projet ? Vous pourrez annuler cette action.", true, "Vider le circuit") || this.active?.id !== active.id) return
+        this.editor.replaceWorkspaceCircuit(this.empty(active.name), false)
         this.queue(this.snapshot())
     }
 
@@ -358,8 +359,9 @@ export class AccountWorkspace {
                     })
                 })
                 const rename = this.makeButton("Renommer", () => {
-                    const n = window.prompt("Nouveau nom", p.name)
-                    if (n && n.trim()) void run(async () => {
+                    void run(async () => {
+                        const n = await this.editor.appPrompt("Nouveau nom du projet", p.name)
+                        if (!n || !n.trim()) return
                         const { project } = await api<{ project: Project }>("projects/" + p.id, "PATCH", { name: n })
                         if (this.active?.id === p.id) this.active.name = project.name
                         await renderProjects()
@@ -368,12 +370,18 @@ export class AccountWorkspace {
                 row.append(info, open, rename)
                 if (p.id === this.active?.id && this.conflict) {
                     row.append(this.makeButton("Recharger", () => {
-                        if (window.confirm("Abandonner les modifications locales non sauvegardées ?")) void run(async () => { await this.openProject(p.id, true); dialog.close() })
+                        void run(async () => {
+                            if (await this.editor.appConfirm("Abandonner les modifications locales non sauvegardées ?", true, "Recharger")) {
+                                await this.openProject(p.id, true)
+                                dialog.close()
+                            }
+                        })
                     }))
                 }
                 if (p.id !== this.active?.id) {
                     const remove = this.makeButton("Supprimer", () => {
-                        if (window.confirm("Supprimer définitivement " + p.name + " ?")) void run(async () => {
+                        void run(async () => {
+                            if (!await this.editor.appConfirm("Supprimer définitivement « " + p.name + " » ?", true, "Supprimer")) return
                             await api("projects/" + p.id, "DELETE", { revision: p.revision })
                             await renderProjects()
                         })

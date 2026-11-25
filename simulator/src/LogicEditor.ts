@@ -30,6 +30,7 @@ import { TopBar } from "./TopBar"
 import { EditorSelection, PointerDragEvent, UIEventManager } from "./UIEventManager"
 import { UndoManager } from './UndoManager'
 import { AccountWorkspace } from "./AccountWorkspace"
+import { AppDialogOptions, openAppDialog } from "./AppDialog"
 import { Component, ComponentBase, InjectedParams } from "./components/Component"
 import { CustomComponent, CustomComponentDef } from "./components/CustomComponent"
 import { Drawable, DrawableParent, DrawableWithDraggablePosition, DrawableWithPosition, EditTools, GraphicsRendering } from "./components/Drawable"
@@ -1054,7 +1055,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
 
         const showUserdataLink = a(S.Settings.showUserDataLink[1], style("text-decoration: underline; cursor: pointer")).render()
         showUserdataLink.addEventListener("click", () => {
-            alert(S.Settings.userDataHeader + "\n\n" + JSON5.stringify(this.userdata, undefined, 4))
+            void this.appAlert(S.Settings.userDataHeader + "\n\n" + JSON5.stringify(this.userdata, undefined, 4))
         })
         const showUserDataLinkContainer = div(
             style("margin-top: 5px; display: none"),
@@ -1474,17 +1475,17 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
      */
     public tryLoadFromLocalStorage(): boolean {
         if (this._accountWorkspace?.hasProject) {
-            window.alert("Ouvrez un fichier exporté ou déconnectez-vous pour retrouver le circuit invité.")
+            void this.appAlert("Ouvrez un fichier exporté ou déconnectez-vous pour retrouver le circuit invité.")
             return false
         }
         const savedTime = this.tryLoadFromStorage(localStorage, PostLoadActions_SnapshotNoStorage)
         if (savedTime === undefined) {
-            window.alert(S.Messages.NoSavedData)
+            void this.appAlert(S.Messages.NoSavedData)
             return false
         }
 
         if (isString(savedTime)) {
-            window.alert(S.Messages.FailedToLoadCircuitFromStorage.expand({ error: savedTime }))
+            void this.appAlert(S.Messages.FailedToLoadCircuitFromStorage.expand({ error: savedTime }))
             console.error("Failed to load circuit from session storage", savedTime)
             return false
         }
@@ -1703,11 +1704,33 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
 
     public resetCircuit() {
         if (this._accountWorkspace?.hasProject) {
-            this._accountWorkspace.resetProject()
+            void this._accountWorkspace.resetProject()
             return
         }
         this.tryClearBrowserStorage()
         this.editor.tryLoadCircuitFromData(false, PostLoadActions_None)
+    }
+
+    private async appDialog(options: AppDialogOptions) {
+        const previous = this._dontHogFocus
+        this._dontHogFocus = true
+        try { return await openAppDialog(this.html.rootDiv, options) }
+        finally {
+            this._dontHogFocus = previous
+            if (!previous) this.focus()
+        }
+    }
+
+    public async appAlert(message: string, title?: string) {
+        await this.appDialog({ kind: "alert", message, title })
+    }
+
+    public async appConfirm(message: string, danger = false, accept?: string) {
+        return await this.appDialog({ kind: "confirm", message, danger, accept }) !== null
+    }
+
+    public appPrompt(message: string, value = "") {
+        return this.appDialog({ kind: "prompt", message, value })
     }
 
     public setAccountDialogFocus(open: boolean) {
@@ -1753,7 +1776,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         const error = this.editor.factory.tryModifyCustomComponent(def, editorRoot)
         if (error !== undefined) {
             if (error.length !== 0) {
-                window.alert(error)
+                void this.appAlert(error)
             }
             return true // handled, even if with error
         }
@@ -2987,7 +3010,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
             }
         }
         if (anyLocked) {
-            window.alert(S.Messages.CannotDeleteLockedComponent)
+            void this.appAlert(S.Messages.CannotDeleteLockedComponent)
             return false
         }
 

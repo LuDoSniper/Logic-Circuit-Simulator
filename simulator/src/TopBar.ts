@@ -224,9 +224,9 @@ export class TopBar {
 
     // Handlers
 
-    private runSetCircuitNameDialog() {
+    private async runSetCircuitNameDialog() {
         const currentValue = this.editor.options.name ?? ""
-        const newName = window.prompt(S.TopBar.SetCircuitName, currentValue)
+        const newName = await this.editor.appPrompt(S.TopBar.SetCircuitName, currentValue)
         if (newName === null || newName === currentValue) {
             return
         }

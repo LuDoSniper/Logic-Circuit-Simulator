@@ -344,8 +344,8 @@ export class Rectangle extends ComponentBase<RectangleRepr> {
         ]
     }
 
-    private runSetSizeDialog(currentSizeStr: string) {
-        const promptReturnValue = window.prompt(S.Components.Rectangle.contextMenu.SizePrompt, currentSizeStr)
+    private async runSetSizeDialog(currentSizeStr: string) {
+        const promptReturnValue = await this.parent.editor.appPrompt(S.Components.Rectangle.contextMenu.SizePrompt, currentSizeStr)
         if (promptReturnValue !== null) {
             let match
             if ((match = /^(?<w>\d*)((\s+|( *[×x,;] *))(?<h>\d*))?$/.exec(promptReturnValue)) !== null) {
@@ -362,6 +362,8 @@ export class Rectangle extends ComponentBase<RectangleRepr> {
                 const w = parse(match.groups?.w, this._w)
                 const h = parse(match.groups?.h, this._h)
                 this.doSetDimensions(w, h)
+                this.parent.editor.editTools.undoMgr.takeSnapshot()
+                this.parent.editor.recalcPropagateAndDrawIfNeeded()
             }
         }
     }
@@ -403,20 +405,22 @@ export class Rectangle extends ComponentBase<RectangleRepr> {
         this.doSetDimensions(w, h)
     }
 
-    private runSetCaptionDialog() {
-        const promptReturnValue = window.prompt(S.Components.Rectangle.contextMenu.SetTitlePrompt, this._caption)
+    private async runSetCaptionDialog() {
+        const promptReturnValue = await this.parent.editor.appPrompt(S.Components.Rectangle.contextMenu.SetTitlePrompt, this._caption)
         if (promptReturnValue !== null) {
             // OK button pressed
             const newCaption = promptReturnValue.length === 0 ? undefined : promptReturnValue
             this.doSetCaption(newCaption)
+            this.parent.editor.editTools.undoMgr.takeSnapshot()
+            this.parent.editor.recalcPropagateAndDrawIfNeeded()
         }
     }
 
     public override pointerDoubleClicked(__e: PointerEvent): InteractionResult {
         // TODO: implement dragging for resizing the rectangle
         // don't call super, which would rotate the rectangle, this is useless here
-        this.runSetSizeDialog(this.makeCurrentSizeString())
-        return InteractionResult.SimpleChange
+        void this.runSetSizeDialog(this.makeCurrentSizeString())
+        return InteractionResult.NoChange
     }
 
     public override keyDown(e: KeyboardEvent): void {

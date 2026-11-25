@@ -1610,9 +1610,9 @@ export abstract class ComponentBase<
         return MenuData.item("pen", caption, () => this.runSetNameDialog(currentName, handler), { shortcut: "↩︎" })
     }
 
-    protected runSetNameDialog(currentName: ComponentName, handler: (newName: ComponentName) => void): void {
+    protected async runSetNameDialog(currentName: ComponentName, handler: (newName: ComponentName) => void) {
         const currentDisplayName = currentName === undefined || isString(currentName) ? currentName : JSON5.stringify(currentName)
-        const promptReturnValue = window.prompt(S.Components.Generic.contextMenu.SetNamePrompt, currentDisplayName)
+        const promptReturnValue = await this.parent.editor.appPrompt(S.Components.Generic.contextMenu.SetNamePrompt, currentDisplayName)
         if (promptReturnValue !== null) {
             // OK button pressed
             let newName
@@ -1632,16 +1632,22 @@ export abstract class ComponentBase<
                 }
             }
             handler(newName)
+            this.parent.editor.editTools.undoMgr.takeSnapshot()
+            this.parent.editor.recalcPropagateAndDrawIfNeeded()
         }
+        return InteractionResult.NoChange
     }
 
-    protected runSetFontDialog(currentFont: string, defaultIfEmpty: string, callback: (font: string) => void) {
+    protected async runSetFontDialog(currentFont: string, defaultIfEmpty: string, callback: (font: string) => void) {
         const s = S.Components.Generic.contextMenu
-        const promptReturnValue = window.prompt(s.SetFontPrompt[0] + defaultIfEmpty + s.SetFontPrompt[1], currentFont === defaultIfEmpty ? "" : currentFont)
+        const promptReturnValue = await this.parent.editor.appPrompt(s.SetFontPrompt[0] + defaultIfEmpty + s.SetFontPrompt[1], currentFont === defaultIfEmpty ? "" : currentFont)
         if (promptReturnValue !== null) {
             const newFont = promptReturnValue.length === 0 ? defaultIfEmpty : promptReturnValue
             callback(newFont)
+            this.parent.editor.editTools.undoMgr.takeSnapshot()
+            this.parent.editor.recalcPropagateAndDrawIfNeeded()
         }
+        return InteractionResult.NoChange
     }
 
 }

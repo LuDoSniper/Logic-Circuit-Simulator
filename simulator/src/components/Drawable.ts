@@ -272,16 +272,16 @@ export abstract class Drawable {
         const s = S.Components.Generic.contextMenu
         const caption: Modifier = currentId === undefined ? s.SetIdentifier : span(s.ChangeIdentifier[0], span(fixedWidthInContextMenu, currentId), s.ChangeIdentifier[1])
         return MenuData.item("ref", caption, () => {
-            this.runSetIdDialog()
+            return this.runSetIdDialog()
         }, { shortcut: "⌥↩︎" })
     }
 
-    private runSetIdDialog() {
+    private async runSetIdDialog() {
         const s = S.Components.Generic.contextMenu
         // eslint-disable-next-line no-constant-condition
         while (true) {
             const currentId = this._ref
-            const newId = window.prompt(s.SetIdentifierPrompt, currentId)
+            const newId = await this.parent.editor.appPrompt(s.SetIdentifierPrompt, currentId)
             if (newId === null) {
                 // cancel button pressed
                 break
@@ -298,7 +298,7 @@ export abstract class Drawable {
             } else {
                 // we're a component, check with the component list
                 if (newId.length === 0) {
-                    window.alert(s.IdentifierCannotBeEmpty)
+                    await this.parent.editor.appAlert(s.IdentifierCannotBeEmpty)
                     continue
                 }
                 const componentList = this.parent.components
@@ -307,7 +307,7 @@ export abstract class Drawable {
                     // OK button pressed
                     componentList.changeIdOf(this, newId)
                 } else {
-                    if (window.confirm(s.IdentifierAlreadyInUseShouldSwap)) {
+                    if (await this.parent.editor.appConfirm(s.IdentifierAlreadyInUseShouldSwap)) {
                         componentList.swapIdsOf(otherComp, this)
                     } else {
                         continue
@@ -315,6 +315,8 @@ export abstract class Drawable {
                 }
             }
             this.requestRedraw({ why: "ref changed" })
+            this.parent.editor.editTools.undoMgr.takeSnapshot()
+            this.parent.editor.recalcPropagateAndDrawIfNeeded()
             break
         }
     }

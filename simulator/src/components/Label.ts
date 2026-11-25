@@ -119,13 +119,14 @@ export class Label extends ComponentBase<LabelRepr> {
         ]
     }
 
-    private runSetTextDialog(): InteractionResult {
-        const promptReturnValue = window.prompt(S.Components.Label.contextMenu.ChangeTextPrompt, this._text)
+    private async runSetTextDialog(): Promise<InteractionResult> {
+        const promptReturnValue = await this.parent.editor.appPrompt(S.Components.Label.contextMenu.ChangeTextPrompt, this._text)
         if (promptReturnValue !== null) {
             // OK button pressed
             const newText = promptReturnValue.length === 0 ? LabelDef.aults.text : promptReturnValue
             this.doSetText(newText)
-            return InteractionResult.SimpleChange
+            this.parent.editor.editTools.undoMgr.takeSnapshot()
+            this.parent.editor.recalcPropagateAndDrawIfNeeded()
         }
         return InteractionResult.NoChange
     }
@@ -143,7 +144,8 @@ export class Label extends ComponentBase<LabelRepr> {
         if (superChange.isChange) {
             return superChange // already handled
         }
-        return this.runSetTextDialog()
+        void this.runSetTextDialog()
+        return InteractionResult.NoChange
     }
 
 }

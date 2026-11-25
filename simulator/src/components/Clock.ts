@@ -207,21 +207,23 @@ export class Clock extends InputBase<ClockRepr> {
         ]
     }
 
-    private runSetPeriodDialog() {
+    private async runSetPeriodDialog() {
         const s = S.Components.Clock.contextMenu
-        const newPeriodStr = window.prompt(s.SetPeriodMillis, String(this._period))
+        const newPeriodStr = await this.parent.editor.appPrompt(s.SetPeriodMillis, String(this._period))
         if (newPeriodStr === null || newPeriodStr.length === 0) {
             return
         }
 
         const newPeriod = parseInt(newPeriodStr)
         if (isNaN(newPeriod) || newPeriod < 1) {
-            window.alert(s.InvalidPeriod)
-            this.runSetPeriodDialog()
+            await this.parent.editor.appAlert(s.InvalidPeriod)
+            await this.runSetPeriodDialog()
             return
         }
 
         this.doSetPeriod(newPeriod)
+        this.parent.editor.editTools.undoMgr.takeSnapshot()
+        this.parent.editor.recalcPropagateAndDrawIfNeeded()
     }
 
 

@@ -254,9 +254,9 @@ export abstract class ROMRAMBase<TRepr extends ROMRAMRepr> extends ParametrizedC
         }
 
         const editContentItem: [MenuItemPlacement, MenuItem] =
-            ["mid", MenuData.item("memcontent", s.EditContent, () => {
+            ["mid", MenuData.item("memcontent", s.EditContent, async () => {
                 const current = this.contentRepr(" ", false)
-                const promptReturnValue = window.prompt(s.EditContentPrompt, current)
+                const promptReturnValue = await this.parent.editor.appPrompt(s.EditContentPrompt, current)
                 if (promptReturnValue !== null) {
                     this.doSetMem(RAM.contentsFromString(promptReturnValue, this.numDataBits, this.numWords))
                 }

@@ -1131,17 +1131,22 @@ export class UIEventManager {
         })
     }
 
-    public tryDeleteDrawable(comp: Drawable): InteractionResult {
+    public tryDeleteDrawable(comp: Drawable, confirmed = false): InteractionResult {
         if (comp instanceof ComponentBase) {
             if (comp.lockPos) {
                 void this.editor.appAlert(S.Messages.CannotDeleteLockedComponent)
                 return InteractionResult.NoChange
             }
             const ref = comp.ref
-            if (this.editor.editorRoot.testSuites.hasReferenceTo(ref)) {
-                if (!window.confirm(S.Tests.ComponentUsedInTestSuite.expand({ ref }))) {
-                    return InteractionResult.NoChange
-                }
+            if (!confirmed && this.editor.editorRoot.testSuites.hasReferenceTo(ref)) {
+                const root = this.editor.editorRoot
+                void this.editor.appConfirm(S.Tests.ComponentUsedInTestSuite.expand({ ref }), true, "Supprimer").then(ok => {
+                    if (!ok || root !== this.editor.editorRoot) return
+                    const result = this.tryDeleteDrawable(comp, true)
+                    if (result.isChange) this.editor.editTools.undoMgr.takeSnapshot(result)
+                    this.editor.recalcPropagateAndDrawIfNeeded()
+                })
+                return InteractionResult.NoChange
             }
             const numDeleted = this.tryDeleteComponentsWhere(c => c === comp, true)
             return InteractionResult.fromBoolean(numDeleted !== 0)
@@ -1320,8 +1325,8 @@ class EditHandlers extends ToolHandlers {
 
         const makeNewTestCaseItems: MenuData =
             (!isMainEditor || !UIPermissions.canModifyTestCases(editor)) ? [] : [
-                MenuData.item("testcase", s.MakeNewTestCase, () => {
-                    const result = editor.factory.tryMakeNewTestCase(editor)
+                MenuData.item("testcase", s.MakeNewTestCase, async () => {
+                    const result = await editor.factory.tryMakeNewTestCase(editor)
                     if (isString(result)) {
                         if (result.length > 0) {
                             void this.editor.appAlert(s.MakeNewTestCaseFailed + " " + result)

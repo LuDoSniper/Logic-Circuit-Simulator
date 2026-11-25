@@ -1772,13 +1772,19 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         if (!(editorRoot instanceof CustomComponent)) {
             return false
         }
+        void this.finishCustomComponentEditor(editorRoot)
+        return true
+    }
+
+    private async finishCustomComponentEditor(editorRoot: CustomComponent) {
         const def = editorRoot.customDef
-        const error = this.editor.factory.tryModifyCustomComponent(def, editorRoot)
+        const error = await this.editor.factory.tryModifyCustomComponent(def, editorRoot)
+        if (this.editorRoot !== editorRoot) return
         if (error !== undefined) {
             if (error.length !== 0) {
                 void this.appAlert(error)
             }
-            return true // handled, even if with error
+            return
         }
         for (const type of this.factory.getCustomComponentTypesWhichUse(def.type)) {
             // console.log(`Updating custom component type '${type}'`)
@@ -1787,7 +1793,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         this.setEditorRoot(this.editor)
         this.updateCustomComponentButtons()
         this.editTools.undoMgr.takeSnapshot()
-        return true
+        this.recalcPropagateAndDrawIfNeeded()
     }
 
     public loadCircuitOrLibrary(jsonStringOrObject: string | Record<string, unknown>) {
@@ -3001,7 +3007,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
             return false
         }
 
-        const selection = this.eventMgr.currentSelection?.previouslySelectedElements ?? []
+        const selection = [...(this.eventMgr.currentSelection?.previouslySelectedElements ?? [])]
         let anyLocked = false
         for (const elem of selection) {
             if (elem instanceof ComponentBase && elem.lockPos) {
@@ -3011,13 +3017,30 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         }
         if (anyLocked) {
             void this.appAlert(S.Messages.CannotDeleteLockedComponent)
-            return false
+            return true
         }
 
 
+        const root = this.editorRoot
+        const referenced = selection.filter(elem => elem instanceof ComponentBase && root.testSuites.hasReferenceTo(elem.ref))
+        if (referenced.length !== 0) {
+            void (async () => {
+                for (const elem of referenced) {
+                    if (!await this.appConfirm(S.Tests.ComponentUsedInTestSuite.expand({ ref: (elem as ComponentBase).ref }), true, "Supprimer")) return
+                }
+                if (root !== this.editorRoot) return
+                this.deleteConfirmedSelection(selection)
+                this.recalcPropagateAndDrawIfNeeded()
+            })()
+            return true
+        }
+        return this.deleteConfirmedSelection(selection)
+    }
+
+    private deleteConfirmedSelection(selection: Drawable[]) {
         let anyDeleted = false
         for (const elem of selection) {
-            anyDeleted = this.eventMgr.tryDeleteDrawable(elem).isChange || anyDeleted
+            anyDeleted = this.eventMgr.tryDeleteDrawable(elem, true).isChange || anyDeleted
         }
 
         if (!anyDeleted) {

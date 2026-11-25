@@ -495,7 +495,7 @@ export class ComponentFactory {
         return customDef
     }
 
-    public tryMakeNewTestCase(editor: LogicEditor): TestCaseCombinational | string {
+    public async tryMakeNewTestCase(editor: LogicEditor): Promise<TestCaseCombinational | string> {
 
         const checkResult = this.checkSelectionForTestCase(editor)
         if (isString(checkResult)) {
@@ -504,35 +504,16 @@ export class ComponentFactory {
 
         const { inputs, outputs } = checkResult
 
-        return this.makeTestCaseWithCurrentValues(editor, inputs, outputs, true) ?? ""
+        const test = this.makeTestCaseWithCurrentValues(editor, inputs, outputs)
+        const name = await editor.appPrompt(S.Messages.NewTestCaseSetName, test.name ?? "")
+        if (name === null) return ""
+        test.name = name.length === 0 ? undefined : name
+        return test
     }
 
-    private makeTestCaseWithCurrentValues<B extends boolean>(editor: LogicEditor, inputs: Input[], outputs: Output[], askName: B): TestCaseCombinational | (B extends true ? undefined : never) {
+    private makeTestCaseWithCurrentValues(editor: LogicEditor, inputs: Input[], outputs: Output[]): TestCaseCombinational {
 
-        const joiner = "\n • "
-        const inReprBuf: string[] = []
-        const outReprBuf: string[] = []
-
-        const mkDesc = (reprBuf: string[]) => (inOut: Input | Output) => {
-            const repr = binaryStringRepr(inOut.value)
-            reprBuf.push(repr)
-            return `${inOut.ref ?? "?"}${isString(inOut.name) ? ` (“${inOut.name}”)` : ""}: ${repr}`
-        }
-
-        const s = S.Messages
-        const inputsStr = s.TestCaseInputToSet.expand({ n: inputs.length }) + joiner + inputs.map(mkDesc(inReprBuf)).join(joiner)
-        const outputsStr = s.TestCaseOuputToCheck.expand({ n: outputs.length }) + joiner + outputs.map(mkDesc(outReprBuf)).join(joiner)
-
-
-        const prompt = s.NewTestCaseTitle + `\n\n${inputsStr}\n\n${outputsStr}\n\n` + s.NewTestCaseSetName
-        let testCaseName: string | null = inReprBuf.join(" ") + " → " + outReprBuf.join(" ")
-
-        if (askName) {
-            testCaseName = window.prompt(prompt, testCaseName)
-            if (testCaseName === null) {
-                return undefined as any
-            }
-        }
+        const testCaseName = inputs.map(input => binaryStringRepr(input.value)).join(" ") + " → " + outputs.map(output => binaryStringRepr(output.value)).join(" ")
 
         const inMap: TestCaseCombinationalRepr["in"] = Object.create(null)
         for (const input of inputs) {
@@ -601,7 +582,7 @@ export class ComponentFactory {
                 }
                 editor.recalcPropagateAndDrawIfNeeded(true)
                 await editor.waitForPropagation()
-                testCases.push(this.makeTestCaseWithCurrentValues(editor, inputs, outputs, false))
+                testCases.push(this.makeTestCaseWithCurrentValues(editor, inputs, outputs))
             }
 
             return testCases
@@ -610,7 +591,7 @@ export class ComponentFactory {
         return result ?? ""
     }
 
-    public tryModifyCustomComponent(def: CustomComponentDef, defRoot: CustomComponent): undefined | string {
+    public async tryModifyCustomComponent(def: CustomComponentDef, defRoot: CustomComponent): Promise<undefined | string> {
         const s = S.Components.Custom.messages
         const components = [...defRoot.components.all()]
 
@@ -634,7 +615,7 @@ export class ComponentFactory {
         })
 
         if (newDef.numInputs !== def.numInputs || newDef.numOutputs !== def.numOutputs) {
-            if (!window.confirm(s.InputsOutputsChanged)) {
+            if (!await this.editor.appConfirm(s.InputsOutputsChanged, true)) {
                 return "" // cancelled
             }
         }

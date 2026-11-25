@@ -709,11 +709,11 @@ export class Wire extends Drawable {
         const setWireOptionsItems =
             this.parent.mode < Mode.DESIGN ? [] : [
                 MenuData.sep(),
-                MenuData.item("timer", s.CustomPropagationDelay.expand({ current: currentPropDelayStr }), (__itemEvent) => {
+                MenuData.item("timer", s.CustomPropagationDelay.expand({ current: currentPropDelayStr }), async (__itemEvent) => {
                     const currentStr = this.customPropagationDelay === undefined ? "" : String(this.customPropagationDelay)
                     const defaultDelay = String(this.parent.editor.options.propagationDelay)
                     const message = s.CustomPropagationDelayDesc.expand({ current: defaultDelay })
-                    const newValueStr = prompt(message, currentStr)
+                    const newValueStr = await this.parent.editor.appPrompt(message, currentStr)
                     if (newValueStr !== null) {
                         if (newValueStr === "") {
                             this.customPropagationDelay = undefined

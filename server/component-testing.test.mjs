@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { makeTruthInputs, circuitSignature, ComponentDocumentation, defaultDocumentation } from "../simulator/src/CustomComponentTesting.ts"
+import { makeTruthInputs, circuitSignature, ComponentDocumentation, defaultDocumentation, TestGame, validBinary } from "../simulator/src/CustomComponentTesting.ts"
 
 test("truth table enumerates grouped inputs in binary order", () => {
     const ports = [{ id: "A", name: "A", bits: 2 }, { id: "B", name: "B", bits: 1 }]
@@ -26,4 +26,17 @@ test("a changed dependency invalidates a parent truth table", () => {
 test("documentation codec accepts saved independent test cases", () => {
     const doc = { ...defaultDocumentation(), cases: [{ id: "1", name: "carry", inputs: {A:"1"}, expected: {C:"0"} }] }
     assert.equal(ComponentDocumentation.decode(doc)._tag, "Right")
+})
+
+import { readFileSync } from "node:fs"
+test("portable overflow example has eight valid independent cases", () => {
+    const game = JSON.parse(readFileSync(new URL("../examples/overflow-addition.tests.json",import.meta.url),"utf8"))
+    assert.equal(TestGame.decode(game)._tag,"Right")
+    assert.equal(game.cases.length,8)
+    for (const c of game.cases) {
+        const {A,B,R}=c.inputs
+        assert.ok([A,B,R,c.expected.V].every(v => validBinary(v,1)))
+        assert.equal(c.expected.V, A === B && R !== A ? "1" : "0")
+    }
+    assert.equal(game.results,undefined)
 })

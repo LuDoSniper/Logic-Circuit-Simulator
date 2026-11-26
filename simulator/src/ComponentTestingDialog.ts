@@ -69,7 +69,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     const bits = ins.reduce((n,p) => n + p.bits, 0)
     const signature = () => circuitSignature(editor.factory.buildCustomTestingCircuit(root), id => editor.factory.getCustomDef(id)?.circuit)
     const newId = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2)
-    function currentResults() {
+    function currentResults(): Record<string, DevelopmentResult> {
         try { if (draft.results?.signature === signature()) return draft.results.cases } catch { /* invalid circuit */ }
         return {}
     }
@@ -239,8 +239,8 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
         const toolbar = element("div", "component-testing-toolbar")
         const runAll = button("▶ Exécuter les tests", () => {
             void execute(async evaluate => {
-                runAll.disabled = add.disabled = importButton.disabled = exportButton.disabled = true
                 const testedSignature = signature()
+                runAll.disabled = add.disabled = importButton.disabled = exportButton.disabled = true
                 for (const key of Object.keys(result)) delete result[key]
                 draft.results = { signature: testedSignature, cases: result }
                 updateResults()
@@ -289,8 +289,10 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                             for (const p of source) {
                                 if (!Number.isInteger(p.bits) || p.bits < 1 || mapping.has(p.id)) throw new Error("Port invalide ou dupliqué.")
                                 const available = target.filter(t => t.bits === p.bits && !used.has(t.id))
-                                let matched = available.find(t => t.name.toLowerCase() === p.name.toLowerCase())
+                                const matches = available.filter(t => t.name.toLowerCase() === p.name.toLowerCase())
+                                let matched = matches.length === 1 ? matches[0] : undefined
                                 if (!matched) {
+                                    if (!available.length) throw new Error("Aucun port compatible pour " + p.name + " (" + p.bits + " bits).")
                                     const choices = available.map(t => t.id + " (" + t.name + ")").join(", ")
                                     const id = await editor.appPrompt("Associer " + kind + " « " + p.name + " » (" + p.bits + " bits). Saisissez un identifiant parmi : " + choices, available.length === 1 ? available[0].id : "")
                                     if (id === null) throw new Error("Import annulé.")

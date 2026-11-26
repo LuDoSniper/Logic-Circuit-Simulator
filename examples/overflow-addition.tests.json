@@ -1,0 +1,127 @@
+{
+  "format": "logic-remaster-tests",
+  "version": 1,
+  "component": "Overflow Flag (addition)",
+  "inputs": [
+    {
+      "id": "A",
+      "name": "A",
+      "bits": 1
+    },
+    {
+      "id": "B",
+      "name": "B",
+      "bits": 1
+    },
+    {
+      "id": "R",
+      "name": "R",
+      "bits": 1
+    }
+  ],
+  "outputs": [
+    {
+      "id": "V",
+      "name": "V",
+      "bits": 1
+    }
+  ],
+  "cases": [
+    {
+      "id": "overflow-000",
+      "name": "A=0, B=0, R=0 : V=0",
+      "inputs": {
+        "A": "0",
+        "B": "0",
+        "R": "0"
+      },
+      "expected": {
+        "V": "0"
+      }
+    },
+    {
+      "id": "overflow-001",
+      "name": "A=0, B=0, R=1 : V=1",
+      "inputs": {
+        "A": "0",
+        "B": "0",
+        "R": "1"
+      },
+      "expected": {
+        "V": "1"
+      }
+    },
+    {
+      "id": "overflow-010",
+      "name": "A=0, B=1, R=0 : V=0",
+      "inputs": {
+        "A": "0",
+        "B": "1",
+        "R": "0"
+      },
+      "expected": {
+        "V": "0"
+      }
+    },
+    {
+      "id": "overflow-011",
+      "name": "A=0, B=1, R=1 : V=0",
+      "inputs": {
+        "A": "0",
+        "B": "1",
+        "R": "1"
+      },
+      "expected": {
+        "V": "0"
+      }
+    },
+    {
+      "id": "overflow-100",
+      "name": "A=1, B=0, R=0 : V=0",
+      "inputs": {
+        "A": "1",
+        "B": "0",
+        "R": "0"
+      },
+      "expected": {
+        "V": "0"
+      }
+    },
+    {
+      "id": "overflow-101",
+      "name": "A=1, B=0, R=1 : V=0",
+      "inputs": {
+        "A": "1",
+        "B": "0",
+        "R": "1"
+      },
+      "expected": {
+        "V": "0"
+      }
+    },
+    {
+      "id": "overflow-110",
+      "name": "A=1, B=1, R=0 : V=1",
+      "inputs": {
+        "A": "1",
+        "B": "1",
+        "R": "0"
+      },
+      "expected": {
+        "V": "1"
+      }
+    },
+    {
+      "id": "overflow-111",
+      "name": "A=1, B=1, R=1 : V=0",
+      "inputs": {
+        "A": "1",
+        "B": "1",
+        "R": "1"
+      },
+      "expected": {
+        "V": "0"
+      }
+    }
+  ]
+}

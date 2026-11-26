@@ -564,7 +564,7 @@ export class UIEventManager {
         // pointerleave: outside of canvas incl. descendants
         canvas.onpointerleave = e => {
             const tooltip = editor.html.tooltipElem
-            if (e.relatedTarget instanceof Node && tooltip.contains(e.relatedTarget) && tooltip.querySelector(".custom-tooltip-truth")) return
+            if (e.relatedTarget instanceof globalThis.Node && tooltip.contains(e.relatedTarget) && tooltip.querySelector(".custom-tooltip-truth")) return
             this.clearTooltipIfNeeded()
         }
         editor.html.tooltipElem.addEventListener("pointerleave", () => this.clearTooltipIfNeeded())

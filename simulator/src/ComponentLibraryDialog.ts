@@ -77,7 +77,7 @@ export function openComponentLibraryDialog(editor: LogicEditor, host: HTMLElemen
     }
     function render() {
         body.replaceChildren()
-        const file = button("Importer depuis un fichier",() => {
+        const file = button("Importer un composant depuis un fichier JSON",() => {
             const picker = element("input")
             picker.type = "file"
             picker.accept = ".json,.json5,application/json"
@@ -97,8 +97,8 @@ export function openComponentLibraryDialog(editor: LogicEditor, host: HTMLElemen
         for (const def of editor.factory.customDefs() ?? []) {
             const row = element("div","component-library-row")
             row.append(element("strong","",def.caption))
-            row.append(button("Vers fichier",() => { void run(async () => { download(editor.factory.exportComponentBundle([def.customId]),def.caption) }) }))
-            const publish = button("Vers ma bibliothèque",() => {
+            row.append(button("Exporter en fichier JSON",() => { void run(async () => { download(editor.factory.exportComponentBundle([def.customId]),def.caption) }) }))
+            const publish = button("Enregistrer dans ma bibliothèque",() => {
                 void run(async () => {
                     const bundle = editor.factory.exportComponentBundle([def.customId])
                     await api("library","POST",{name:def.caption,bundle})
@@ -121,8 +121,8 @@ export function openComponentLibraryDialog(editor: LogicEditor, host: HTMLElemen
             info.append(element("strong","",item.name),element("small","",new Date(item.created_at).toLocaleString()))
             row.append(info)
             const fetchBundle = async () => (await api<{item: Item & {bundle: Library}}>("library/" + item.id)).item.bundle
-            row.append(button("Vers projet",() => { void run(async () => importBundle(await fetchBundle())) },"primary"))
-            row.append(button("Vers fichier",() => { void run(async () => download(await fetchBundle(),item.name)) }))
+            row.append(button("Importer dans ce projet",() => { void run(async () => importBundle(await fetchBundle())) },"primary"))
+            row.append(button("Exporter en fichier JSON",() => { void run(async () => download(await fetchBundle(),item.name)) }))
             row.append(button("Supprimer",() => { void run(async () => {
                 if (!await editor.appConfirm("Supprimer cette copie de la bibliothèque ? Les projets ne seront pas affectés.",true,"Supprimer")) return
                 await api("library/" + item.id,"DELETE")

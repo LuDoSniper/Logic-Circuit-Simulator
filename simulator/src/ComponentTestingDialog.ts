@@ -282,30 +282,48 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                         if (decoded._tag !== "Right") throw new Error("Format de jeu de tests invalide (logic-remaster-tests v1).")
                         const game = decoded.right
                         if (game.cases.length > 1000 || draft.cases.length + game.cases.length > 1000) throw new Error("Limite : 1 000 cas par composant.")
+                        function checkPorts(source: TestPort[], target: TestPort[], kind: string) {
+                            const describe = (ps: TestPort[]) => ps.map(p => p.name + " (" + p.bits + " bit" + (p.bits === 1 ? "" : "s") + ")").join(", ")
+                            const incompatible = (reason: string) => new Error("Jeu de tests incompatible — " + kind + " : " + reason + ". Fichier : " + describe(source) + ". Composant : " + describe(target) + ".")
+                            if (source.some(p => !Number.isInteger(p.bits) || p.bits < 1) || new Set(source.map(p => p.id)).size !== source.length) throw incompatible("ports invalides ou dupliqués")
+                            if (source.length !== target.length) throw incompatible("nombre de ports différent")
+                            const widths = (ps: TestPort[]) => ps.map(p => p.bits).sort((a,b) => a-b).join(",")
+                            if (widths(source) !== widths(target)) throw incompatible("tailles des bus différentes")
+                            for (const p of source) {
+                                const named = target.filter(t => t.name.toLowerCase() === p.name.toLowerCase())
+                                if (named.length && !named.some(t => t.bits === p.bits)) throw incompatible("la broche " + p.name + " n’a pas la même taille")
+                            }
+                        }
+                        // Check both directions before asking the user to map any renamed ports.
+                        checkPorts(game.inputs,ins,"entrées")
+                        checkPorts(game.outputs,outs,"sorties")
                         async function mapPorts(source: TestPort[], target: TestPort[], kind: string) {
-                            if (source.length !== target.length) throw new Error("Nombre de " + kind + " différent du composant.")
                             const mapping = new Map<string,string>()
                             const used = new Set<string>()
+                            // Reserve exact name/width matches first, regardless of source order.
                             for (const p of source) {
-                                if (!Number.isInteger(p.bits) || p.bits < 1 || mapping.has(p.id)) throw new Error("Port invalide ou dupliqué.")
-                                const available = target.filter(t => t.bits === p.bits && !used.has(t.id))
-                                const matches = available.filter(t => t.name.toLowerCase() === p.name.toLowerCase())
-                                let matched = matches.length === 1 ? matches[0] : undefined
-                                if (!matched) {
-                                    if (!available.length) throw new Error("Aucun port compatible pour " + p.name + " (" + p.bits + " bits).")
-                                    const choices = available.map(t => t.id + " (" + t.name + ")").join(", ")
-                                    const id = await editor.appPrompt("Associer " + kind + " « " + p.name + " » (" + p.bits + " bits). Saisissez un identifiant parmi : " + choices, available.length === 1 ? available[0].id : "")
-                                    if (id === null) throw new Error("Import annulé.")
-                                    matched = available.find(t => t.id === id.trim())
+                                const matches = target.filter(t => t.bits === p.bits && t.name.toLowerCase() === p.name.toLowerCase() && !used.has(t.id))
+                                if (matches.length === 1) {
+                                    mapping.set(p.id,matches[0].id)
+                                    used.add(matches[0].id)
                                 }
-                                if (!matched) throw new Error("Association impossible pour " + p.name)
-                                mapping.set(p.id,matched.id)
-                                used.add(matched.id)
+                            }
+                            for (const p of source) {
+                                if (mapping.has(p.id)) continue
+                                const available = target.filter(t => t.bits === p.bits && !used.has(t.id))
+                                if (!available.length) throw new Error("Aucune broche compatible pour " + p.name)
+                                const choices = available.map(t => t.name).join(", ")
+                                const name = await editor.appPrompt("Le fichier utilise " + kind + " « " + p.name + " » (" + p.bits + " bits), introuvable sous ce nom. Saisissez le nom de la broche correspondante : " + choices, "")
+                                if (name === null) throw new Error("Import annulé.")
+                                const matches = available.filter(t => t.name.toLowerCase() === name.trim().toLowerCase())
+                                if (matches.length !== 1) throw new Error("Association impossible ou ambiguë pour " + p.name)
+                                mapping.set(p.id,matches[0].id)
+                                used.add(matches[0].id)
                             }
                             return mapping
                         }
-                        const im = await mapPorts(game.inputs,ins,"entrée")
-                        const om = await mapPorts(game.outputs,outs,"sortie")
+                        const im = await mapPorts(game.inputs,ins,"l’entrée")
+                        const om = await mapPorts(game.outputs,outs,"la sortie")
                         function mapValues(values: Record<string,string>, ports: TestPort[], mapping: Map<string,string>) {
                             if (Object.keys(values).length !== ports.length) throw new Error("Colonnes manquantes ou supplémentaires dans un test.")
                             return Object.fromEntries(ports.map(p => {

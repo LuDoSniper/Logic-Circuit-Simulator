@@ -1049,3 +1049,45 @@ svg text {
 .app-dialog button:focus-visible, .app-dialog input:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
 @keyframes app-dialog-enter { from { opacity: 0; transform: translateY(7px) scale(.98); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { #logicEditorRoot .app-dialog { animation: none; } }
+
+/* Component test workbench */
+#logicEditorRoot .component-testing-dialog { width: min(1000px,95vw); max-height: 92vh; padding: 0; overflow: auto; border: 1px solid var(--edge); border-radius: 15px; background: var(--panel); color: var(--ink); box-shadow: var(--shadow); font: 13px/1.5 "Segoe UI",system-ui,sans-serif; }
+.component-testing-dialog::backdrop { background: #0008; }
+.component-testing-dialog header, .component-testing-dialog footer { padding: 16px 22px; background: var(--chrome); }
+.component-testing-dialog header small { color: var(--accent); font-weight: 700; letter-spacing: .1em; }
+.component-testing-dialog h2 { margin: 3px 0; font-size: 23px; }
+.component-testing-tabs { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 22px; border-bottom: 1px solid var(--edge); }
+.component-testing-dialog button { border: 1px solid var(--edge); background: var(--chrome); color: var(--ink); font: inherit; padding: 7px 12px; border-radius: 7px; cursor: pointer; }
+.component-testing-dialog button.active { background: var(--selected); color: var(--accent); font-weight: 650; }
+.component-testing-dialog button.primary { background: var(--accent); color: var(--panel); font-weight: 650; }
+.component-testing-dialog button:disabled { opacity: .5; cursor: default; }
+.component-testing-body { display: grid; gap: 14px; padding: 18px 22px; }
+.component-testing-body p { margin: 0; color: var(--muted); }
+.component-testing-toolbar { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+.component-testing-toolbar progress { flex: 1; min-width: 80px; accent-color: var(--accent); }
+.component-testing-table { max-height: 52vh; overflow: auto; border: 1px solid var(--edge); border-radius: 9px; }
+.component-testing-table table, .custom-tooltip-truth table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.component-testing-table th, .component-testing-table td, .custom-tooltip-truth th, .custom-tooltip-truth td { padding: 6px 10px; text-align: center; border-bottom: 1px solid var(--edge); font-family: monospace; white-space: nowrap; }
+.component-testing-table th { position: sticky; top: 0; background: var(--chrome); }
+.component-testing-table .test-input, .custom-tooltip-truth .test-input { color: #337ed4; }
+.component-testing-table .test-output, .custom-tooltip-truth .test-output { color: #198568; }
+.dark .component-testing-table .test-input, .dark .custom-tooltip-truth .test-input { color: #82b6ff; }
+.dark .component-testing-table .test-output, .dark .custom-tooltip-truth .test-output { color: #54d4a7; }
+.component-testing-table tr:nth-child(even) { background: var(--chrome); }
+.component-testing-notice { margin: 0 22px 12px; color: var(--accent); }
+.component-testing-notice:empty { display: none; }
+.component-testing-dialog footer { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--edge); }
+.component-test-cases { display: grid; gap: 10px; }
+.component-test-case { border: 1px solid var(--edge); border-radius: 10px; padding: 12px; }
+.component-test-case .component-testing-toolbar input { flex: 1; min-width: 100px; }
+.component-test-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.component-test-fields h3 { font-size: 12px; }
+.component-test-fields label { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin: 5px 0; }
+.component-testing-dialog input:not([type=checkbox]), .component-testing-dialog textarea { color: var(--ink); background: var(--chrome); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; font: inherit; }
+.component-test-fields input { width: min(130px,45%); font-family: monospace !important; }
+.component-test-result[data-result=pass] { color: #198568; }
+.component-test-result[data-result=fail], .test-warning { color: var(--danger); }
+.component-test-description { display: grid; gap: 6px; }
+.component-test-toggle { display: flex; align-items: center; gap: 8px; }
+.custom-tooltip-description { white-space: pre-wrap; overflow-wrap: anywhere; }
+.custom-tooltip-truth { max-height: 300px; max-width: 500px; overflow: auto; margin-top: 6px; }

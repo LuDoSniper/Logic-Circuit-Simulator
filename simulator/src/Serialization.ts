@@ -8,6 +8,7 @@ import { TestSuite, TestSuiteRepr } from './TestSuite'
 import { type Component } from "./components/Component"
 import type { CustomComponent, CustomComponentDefRepr } from './components/CustomComponent'
 import { ExternalPinLayout } from './ExternalPinLayout'
+import { ComponentDocumentation } from './CustomComponentTesting'
 import { DrawableParent } from './components/Drawable'
 import { Wire } from "./components/Wire"
 import { S } from './strings'
@@ -40,6 +41,7 @@ type Scratch = {
     /** The ID of the component whose scratch space it is */
     id: string,
     pinLayout?: ExternalPinLayout | null,
+    documentation?: ComponentDocumentation,
 
 } & ComponentAndWires
 
@@ -244,6 +246,11 @@ class _Serialization {
                     if (layout !== undefined) customComp.draftPinLayout = layout
                 }
                 delete scratch.pinLayout
+                if (scratch.documentation !== undefined) {
+                    const doc = validateJson(scratch.documentation, ComponentDocumentation, "scratch.documentation")
+                    if (doc !== undefined) customComp.draftDocumentation = doc
+                }
+                delete scratch.documentation
                 const error = this.loadCircuitForCustomComponent(customComp, scratch)
                 if (error !== undefined) {
                     console.error("Error loading scratch space: " + error)
@@ -382,6 +389,7 @@ class _Serialization {
             const scratch: Scratch = {
                 id: customComp.ref ?? "n/a",
                 pinLayout: customComp.draftPinLayout ?? null,
+                documentation: customComp.draftDocumentation,
             }
             this.buildReprsInto(scratch, editorRoot.components.all(), editorRoot.linkMgr.wires, editorRoot.testSuites.suites)
             dataObject.scratch = scratch
@@ -532,6 +540,8 @@ class _Serialization {
         if (scratch !== undefined) {
             const scratchparts: string[] = []
             scratchparts.push(`id: ${stringifySmart(scratch.id)}`)
+            stringifyCompactReprTo(scratchparts, { ...scratch }, "pinLayout")
+            stringifyCompactReprTo(scratchparts, { ...scratch }, "documentation")
             stringifyComponentWiresTestsReprsTo(scratchparts, { ...scratch }, 2, false)
             parts.push(`scratch: {\n    ` + scratchparts.join(",\n    ") + "\n  }")
         }

@@ -591,6 +591,12 @@ export class ComponentFactory {
         return result ?? ""
     }
 
+    public buildCustomTestingCircuit(root: CustomComponent) {
+        const checked = this.checkComponentsForCustomDef([...root.components.all()])
+        if (isString(checked)) throw new Error(checked)
+        return Serialization.buildComponentsAndWireObject(checked.components, [], undefined)
+    }
+
     public async tryModifyCustomComponent(def: CustomComponentDef, defRoot: CustomComponent): Promise<undefined | string> {
         const s = S.Components.Custom.messages
         const components = [...defRoot.components.all()]
@@ -612,6 +618,7 @@ export class ComponentFactory {
             caption: def.caption,
             circuit: { components: circuit.components, wires: circuit.wires },
             ...(defRoot.draftPinLayout === undefined ? {} : { pinLayout: defRoot.draftPinLayout.filter(pin => Object.prototype.hasOwnProperty.call(circuit.components, pin.id)) }),
+            documentation: structuredClone(defRoot.draftDocumentation),
         })
 
         if (newDef.numInputs !== def.numInputs || newDef.numOutputs !== def.numOutputs) {

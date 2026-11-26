@@ -1,4 +1,5 @@
 import * as t from "io-ts"
+import { ComponentDocumentation, circuitSignature, defaultDocumentation } from "../CustomComponentTesting"
 import { ExternalPinLayout } from "../ExternalPinLayout"
 import { ComponentFactory } from "../ComponentFactory"
 import { ComponentList } from "../ComponentList"
@@ -44,7 +45,7 @@ export const CustomComponentDefRepr = t.intersection([t.type({
         components: typeOrUndefined(t.record(t.string, t.record(t.string, t.unknown))),
         wires: typeOrUndefined(t.array(Wire.Repr)),
     }),
-}), t.partial({ pinLayout: ExternalPinLayout })])
+}), t.partial({ pinLayout: ExternalPinLayout, documentation: ComponentDocumentation })])
 
 export type CustomComponentDefRepr = t.TypeOf<typeof CustomComponentDefRepr>
 type CircuitRepr = CustomComponentDefRepr["circuit"]
@@ -56,6 +57,7 @@ export class CustomComponentDef {
     public readonly circuit: CircuitRepr
     public readonly insOuts: CustomComponentNodeSpec[]
     public readonly pinLayout: ExternalPinLayout | undefined
+    public readonly documentation: ComponentDocumentation
     public readonly numInputs: number
     public readonly numOutputs: number
     private readonly numBySide: Record<Orientation, number> = { n: 0, e: 0, s: 0, w: 0 }
@@ -69,6 +71,7 @@ export class CustomComponentDef {
             caption: this._caption,
             circuit: this.circuit,
             ...(this.pinLayout === undefined ? {} : { pinLayout: this.pinLayout }),
+            documentation: this.documentation,
         }
     }
 
@@ -90,6 +93,7 @@ export class CustomComponentDef {
         this._caption = data.caption
         this.circuit = data.circuit
         this.pinLayout = data.pinLayout
+        this.documentation = data.documentation ?? defaultDocumentation()
 
         this.insOuts = []
         let totalIn = 0
@@ -311,6 +315,7 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
     private _customDef: CustomComponentDef
     public get customDef() { return this._customDef }
     public draftPinLayout: ExternalPinLayout | undefined
+    public draftDocumentation: ComponentDocumentation
     public readonly numInputs: number
     public readonly numOutputs: number
 
@@ -344,6 +349,7 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
         super(parent, customDef.toStandardDef().from(parent), saved)
         this._customDef = customDef
         this.draftPinLayout = customDef.pinLayout?.map(pin => ({ ...pin }))
+        this.draftDocumentation = structuredClone(customDef.documentation)
         this.numInputs = this.inputs._all.length
         this.numOutputs = this.outputs._all.length
 
@@ -452,9 +458,36 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
 
     public override makeTooltip() {
         const s = S.Components.Custom.tooltip
-        return tooltipContent(mods(b(this.customDef.caption), span(s.titleSuffix)), mods(
-            div(s.desc),
-        ))
+        const doc = this.customDef.documentation
+        const body = document.createElement("div")
+        if (doc.showDescription) {
+            const description = document.createElement("div")
+            description.className = "custom-tooltip-description"
+            description.textContent = doc.description || s.desc
+            body.append(description)
+        }
+        const truth = doc.truth
+        if (doc.showTruth && truth !== undefined && truth.signature === circuitSignature(this.customDef.circuit, id => this.editor.factory.getCustomDef(id)?.circuit)) {
+            const wrap = document.createElement("div")
+            wrap.className = "custom-tooltip-truth"
+            const table = document.createElement("table")
+            table.className = "truth-table"
+            const head = table.createTHead().insertRow()
+            for (const port of [...truth.inputs, ...truth.outputs]) {
+                const cell = document.createElement("th")
+                cell.textContent = port.name + (port.bits > 1 ? " [" + port.bits + "]" : "")
+                cell.className = truth.inputs.includes(port) ? "test-input" : "test-output"
+                head.append(cell)
+            }
+            const tbody = table.createTBody()
+            for (const values of truth.rows) {
+                const row = tbody.insertRow()
+                for (const value of values) row.insertCell().textContent = value
+            }
+            wrap.append(table)
+            body.append(wrap)
+        }
+        return tooltipContent(mods(b(this.customDef.caption), span(s.titleSuffix)), body, 520)
     }
 
 

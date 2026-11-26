@@ -73,10 +73,17 @@ export class TopBar {
         this.appearanceButton.textContent = "Appearance / Apparence"
         this.appearanceButton.title = "Edit external pin layout / Modifier les broches externes"
         this.appearanceButton.addEventListener("click", () => editor.editCustomComponentAppearance())
+        const componentTests = document.createElement("button")
+        componentTests.type = "button"
+        componentTests.className = "pin-appearance-button"
+        componentTests.textContent = "Tests & info"
+        componentTests.title = "Tests, table de vérité et description"
+        componentTests.addEventListener("click", () => editor.editCustomComponentTests())
         this.customComponentTab = this.makeTab(
             this.closeCustomComponentButton,
             this.customComponentNameLabel,
             this.appearanceButton,
+            componentTests,
         )
         this.circuitNameGroup =
             div(cls("path"), style("flex: none; display: flex; align-items: stretch; margin: -3px 0 -3px -5px; padding: 3px 5px"),

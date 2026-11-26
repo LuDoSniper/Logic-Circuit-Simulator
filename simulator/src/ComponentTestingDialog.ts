@@ -13,7 +13,7 @@ const pause = () => new Promise<void>(resolve => setTimeout(resolve, 0))
 function ports<T extends Input | Output>(components: T[]): Port<T>[] {
     return components.filter(c => c.ref !== undefined).map(c => ({
         id: c.ref!, name: typeof c.name === "string" ? c.name : c.ref!, bits: c.numBits, component: c,
-    }))
+    })).sort((a,b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 }
 function plain<T>(ports: Port<T>[]): TestPort[] {
     return ports.map(({ id, name, bits }) => ({ id, name, bits }))
@@ -172,7 +172,8 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
         const tbody = table.createTBody()
         const cells: HTMLTableCellElement[][] = []
         const inputRows: string[][] = []
-        const saved = draft.truth?.signature === currentSignature && currentSignature !== undefined && draft.truth.rows.length === count ? draft.truth : undefined
+        const truth = draft.truth
+        const saved = truth !== undefined && truth.signature === currentSignature && truth.rows.length === count && JSON.stringify(truth.inputs) === JSON.stringify(plain(ins)) && JSON.stringify(truth.outputs) === JSON.stringify(plain(outs)) ? truth : undefined
         for (let i=0;i<count;i++) {
             const values = makeTruthInputs(ins,i)
             inputRows.push(values)
@@ -194,6 +195,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                 for (const row of cells) for (const cell of row) cell.textContent = "—"
                 const rows: string[][] = []
                 try {
+                    const testedSignature = signature()
                     for (let i=0;i<count;i++) {
                         if (cancelled) { notice.textContent = "Calcul interrompu. La dernière table complète est conservée."; return }
                         const actual = evaluate(inputRows[i])
@@ -203,7 +205,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                         progressText.textContent = (i+1) + " / " + count
                         if (i % 4 === 0) await pause()
                     }
-                    const truth: TruthTable = { signature: signature(), inputs: plain(ins), outputs: plain(outs), rows }
+                    const truth: TruthTable = { signature: testedSignature, inputs: plain(ins), outputs: plain(outs), rows }
                     draft.truth = truth
                     notice.textContent = "Table complète. Enregistrez pour la publier selon vos réglages de survol."
                 } finally { run.disabled = false }
@@ -237,7 +239,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
         }, "primary")
         const add = button("+ Ajouter un test", () => {
             const test: DevelopmentCase = {
-                id: crypto.randomUUID(), name: "Test " + (draft.cases.length+1),
+                id: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2), name: "Test " + (draft.cases.length+1),
                 inputs: Object.fromEntries(ins.map(p => [p.id,"0".repeat(p.bits)])),
                 expected: Object.fromEntries(outs.map(p => [p.id,"0".repeat(p.bits)])),
             }

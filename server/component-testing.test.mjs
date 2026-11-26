@@ -1,0 +1,29 @@
+import test from "node:test"
+import assert from "node:assert/strict"
+import { makeTruthInputs, circuitSignature, ComponentDocumentation, defaultDocumentation } from "../simulator/src/CustomComponentTesting.ts"
+
+test("truth table enumerates grouped inputs in binary order", () => {
+    const ports = [{ id: "A", name: "A", bits: 2 }, { id: "B", name: "B", bits: 1 }]
+    assert.deepEqual(Array.from({length:8}, (_,i) => makeTruthInputs(ports,i)), [
+        ["00","0"],["00","1"],["01","0"],["01","1"],["10","0"],["10","1"],["11","0"],["11","1"],
+    ])
+})
+test("signature ignores input value, reference, wire ordering and propagation delay", () => {
+    const noDep = () => undefined
+    const a = { components: { A: { type: "in", val: 0, ref: "A" }, G: { type: "gate", orient: "e" } }, wires: [[1,2],[3,4]] }
+    const b = { components: { G: { orient: "e", type: "gate" }, A: { type: "in", val: 1 } }, wires: [[3,4,{propagationDelay:0}],[1,2]] }
+    assert.equal(circuitSignature(a,noDep),circuitSignature(b,noDep))
+    b.wires[0][1] = 5
+    assert.notEqual(circuitSignature(a,noDep),circuitSignature(b,noDep))
+})
+test("a changed dependency invalidates a parent truth table", () => {
+    const parent = { components: { X: { type: "custom-child" } } }
+    const child = { components: { A: { type: "in", isConstant: true, val: 0 } } }
+    const before = circuitSignature(parent, () => child)
+    child.components.A.val = 1
+    assert.notEqual(before,circuitSignature(parent, () => child))
+})
+test("documentation codec accepts saved independent test cases", () => {
+    const doc = { ...defaultDocumentation(), cases: [{ id: "1", name: "carry", inputs: {A:"1"}, expected: {C:"0"} }] }
+    assert.equal(ComponentDocumentation.decode(doc)._tag, "Right")
+})

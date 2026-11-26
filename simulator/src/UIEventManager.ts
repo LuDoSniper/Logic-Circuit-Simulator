@@ -562,7 +562,12 @@ export class UIEventManager {
             }
         })
         // pointerleave: outside of canvas incl. descendants
-        canvas.onpointerleave = this.clearTooltipIfNeeded.bind(this)
+        canvas.onpointerleave = e => {
+            const tooltip = editor.html.tooltipElem
+            if (e.relatedTarget instanceof Node && tooltip.contains(e.relatedTarget) && tooltip.querySelector(".custom-tooltip-truth")) return
+            this.clearTooltipIfNeeded()
+        }
+        editor.html.tooltipElem.addEventListener("pointerleave", () => this.clearTooltipIfNeeded())
         // no need to handle pointerout because it also fires when entering a child element
 
         const onpointerupcancel = editor.wrapHandler((e: PointerEvent) => {

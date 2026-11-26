@@ -592,7 +592,7 @@ export class ComponentFactory {
     }
 
     public buildCustomTestingCircuit(root: CustomComponent) {
-        const checked = this.checkComponentsForCustomDef([...root.components.all()])
+        const checked = this.checkComponentsForCustomDef([...root.components.all()], false)
         if (isString(checked)) throw new Error(checked)
         return Serialization.buildComponentsAndWireObject(checked.components, [], undefined)
     }
@@ -631,7 +631,7 @@ export class ComponentFactory {
         return undefined // success
     }
 
-    private checkComponentsForCustomDef(components: Component[]): { components: Component[], inputs: Input[], outputs: Output[] } | string {
+    private checkComponentsForCustomDef(components: Component[], assignNames = true): { components: Component[], inputs: Input[], outputs: Output[] } | string {
         const s = S.Components.Custom.messages
 
         const inputs = components.filter((e): e is Input => e instanceof Input)
@@ -660,6 +660,7 @@ export class ComponentFactory {
                     names.add(name)
                 }
             }
+            if (!assignNames && missingNames.length > 0) return false
             for (const inOut of missingNames) {
                 const prefix = inOut instanceof Input ? "In" : "Out"
                 let i = 0, name

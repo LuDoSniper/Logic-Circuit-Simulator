@@ -43,7 +43,8 @@
     "deploy-all": "./deploy-jpp.sh && ./deploy-modulo.sh && ./deploy-modulo-dev.sh",
     "electron": "electron .",
     "server:static": "python tools/local_server.py 8088",
-    "test:server": "node --test server/server.test.mjs"
+    "test:server": "node --test server/server.test.mjs",
+    "test:component": "node --test server/component-testing.test.mjs"
   },
   "watch": {
     "bundle": {

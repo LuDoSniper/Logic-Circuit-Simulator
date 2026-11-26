@@ -31,6 +31,17 @@ test("registration, session, project isolation, revisions, logout and CSRF", asy
         assert.equal((await req(path,"GET",undefined,other)).status,404)
         assert.equal((await req(path,"PUT",{circuit:c,revision:2},other)).status,404)
         assert.equal((await req("/api/projects","GET",undefined,other)).data.projects.length,0)
+        const lib = {v:8,type:"lib",defs:[{id:"adder",caption:"Adder",circuit:{components:{},wires:[]}}]}
+        const saved = await req("/api/library","POST",{name:"Adder",bundle:lib})
+        assert.equal(saved.status,201)
+        const libPath = "/api/library/" + saved.data.item.id
+        assert.equal((await req("/api/library")).data.items.length,1)
+        assert.equal((await req("/api/library","GET",undefined,other)).data.items.length,0)
+        assert.equal((await req(libPath,"GET",undefined,other)).status,404)
+        assert.equal((await req(libPath,"DELETE",undefined,other)).status,404)
+        assert.deepEqual((await req(libPath)).data.item.bundle,lib)
+        assert.equal((await req(libPath,"DELETE")).status,200)
+        assert.equal((await req(libPath)).status,404)
         assert.equal((await req("/api/logout","POST")).status,200)
         assert.equal((await req("/api/session")).data.user,null)
         assert.equal((await req("/api/login","POST",{email:"a@example.com",password:"wrong-password"},"")).status,401)

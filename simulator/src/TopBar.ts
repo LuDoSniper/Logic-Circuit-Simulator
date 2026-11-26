@@ -211,6 +211,15 @@ export class TopBar {
             })
             refresh()
             this.root.append(themeButton)
+            if (!editor.noLoadSave) {
+                const library = document.createElement("button")
+                library.type = "button"
+                library.className = "pin-appearance-button"
+                library.textContent = "Bibliothèque"
+                library.title = "Importer et exporter des composants"
+                library.addEventListener("click", () => editor.openComponentLibrary())
+                this.root.append(library)
+            }
         }
         editor.html.centerCol.insertAdjacentElement("afterbegin", this.root)
 

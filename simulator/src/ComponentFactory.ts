@@ -1,7 +1,8 @@
 import * as t from "io-ts"
 import JSON5 from "json5"
 import { LogicEditor } from "./LogicEditor"
-import { Serialization } from "./Serialization"
+import { Serialization, type Library } from "./Serialization"
+import { CurrentFormatVersion } from "./DataMigration"
 import { TestCaseCombinational, TestCaseCombinationalRepr } from "./TestSuite"
 import { ALU, ALUDef } from "./components/ALU"
 import { Add3IfGeq5, Add3IfGeq5Def } from "./components/Add3IfGeq5"
@@ -350,6 +351,78 @@ export class ComponentFactory {
             }
         }
         return numLoaded
+    }
+
+    /** Export a self-contained snapshot, including nested custom definitions. */
+    public exportComponentBundle(ids: readonly string[]): Library {
+        const defs: CustomComponentDefRepr[] = []
+        const done = new Set<string>(), visiting = new Set<string>()
+        const visit = (id: string) => {
+            if (visiting.has(id)) throw new Error("Dépendance circulaire : " + id)
+            if (done.has(id)) return
+            const def = this.getCustomDef(id)
+            if (!def) throw new Error("Composant manquant : " + id)
+            visiting.add(id)
+            for (const repr of Object.values(def.circuit.components ?? {})) {
+                if (typeof repr.type === "string" && repr.type.startsWith(CustomComponentPrefix)) visit(repr.type.slice(CustomComponentPrefix.length))
+            }
+            visiting.delete(id)
+            done.add(id)
+            defs.push(structuredClone(def.toJSON()))
+        }
+        for (const id of ids) visit(id)
+        if (!defs.length) throw new Error("Aucun composant à exporter.")
+        return { v: CurrentFormatVersion, type: "lib", defs }
+    }
+
+    /** Validate the whole bundle before adding anything; never replace a live definition. */
+    public importComponentBundle(data: unknown): number {
+        if (!data || typeof data !== "object" || !("type" in data) || data.type !== "lib" || !("v" in data) || data.v !== CurrentFormatVersion || !("defs" in data)) throw new Error("Fichier de composants incompatible : bibliothèque v" + CurrentFormatVersion + " requise.")
+        const decoded = t.array(CustomComponentDefRepr).decode(data.defs)
+        if (decoded._tag !== "Right" || !decoded.right.length || decoded.right.length > 200) throw new Error("Définitions invalides ou bibliothèque trop grande.")
+        const incoming = new Map<string, CustomComponentDefRepr>()
+        for (const def of decoded.right) {
+            if (!def.id || incoming.has(def.id) || ["__proto__","constructor","prototype"].includes(def.id)) throw new Error("Identifiant invalide ou dupliqué : " + def.id)
+            incoming.set(def.id, def)
+        }
+        function stable(value: unknown): string {
+            if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]"
+            if (value && typeof value === "object") {
+                const rec = value as Record<string, unknown>
+                return "{" + Object.keys(rec).filter(k => k !== "ref" && rec[k] !== undefined).sort().map(k => JSON.stringify(k) + ":" + stable(rec[k])).join(",") + "}"
+            }
+            return JSON.stringify(value) ?? "null"
+        }
+        const visiting = new Set<string>(), done = new Set<string>()
+        const ordered: CustomComponentDefRepr[] = []
+        const visit = (id: string) => {
+            if (visiting.has(id)) throw new Error("Dépendance circulaire : " + id)
+            if (done.has(id)) return
+            const def = incoming.get(id)
+            if (!def) {
+                if (!this.getCustomDef(id)) throw new Error("Dépendance absente : " + id)
+                return
+            }
+            visiting.add(id)
+            for (const repr of Object.values(def.circuit.components ?? {})) {
+                if (typeof repr.type === "string" && repr.type.startsWith(CustomComponentPrefix)) visit(repr.type.slice(CustomComponentPrefix.length))
+            }
+            visiting.delete(id)
+            done.add(id)
+            const existing = this.getCustomDef(id)
+            const normalized = new CustomComponentDef(structuredClone(def))
+            if (existing && stable(existing.toJSON()) !== stable(normalized.toJSON())) throw new Error("Conflit : « " + def.caption + " » existe déjà avec une autre définition. Renommez le composant existant ou importez dans un autre projet.")
+            if (!existing) ordered.push(def)
+        }
+        for (const id of incoming.keys()) visit(id)
+        const prepared = ordered.map(def => new CustomComponentDef(structuredClone(def)))
+        for (const def of prepared) this.tryAddCustomDef(def,false)
+        if (prepared.length) {
+            this.editor.updateCustomComponentButtons()
+            this.editor.setDirty("imported component library")
+            this.editor.editTools.undoMgr.takeSnapshot()
+        }
+        return prepared.length
     }
 
     public hasCustomComponents() {

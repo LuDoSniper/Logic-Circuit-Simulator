@@ -42,6 +42,8 @@ export function createServer({ dbPath = process.env.LOGIC_DB || resolve(root, "d
         CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at);
         CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, circuit TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS projects_owner ON projects(user_id, updated_at);
+        CREATE TABLE IF NOT EXISTS component_library (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, bundle TEXT NOT NULL, created_at INTEGER NOT NULL);
+        CREATE INDEX IF NOT EXISTS component_library_owner ON component_library(user_id, created_at);
     `)
     const limits = new Map()
     let authInFlight = 0
@@ -137,6 +139,31 @@ export function createServer({ dbPath = process.env.LOGIC_DB || resolve(root, "d
         }
         const u = user(req)
         if (!u) throw fail(401, "Connexion requise.")
+        if (path === "/api/library" && method === "GET") {
+            const items = db.prepare("SELECT id,name,created_at FROM component_library WHERE user_id=? ORDER BY created_at DESC").all(u.id)
+            return json(res,200,{items})
+        }
+        if (path === "/api/library" && method === "POST") {
+            const { name, bundle } = await body(req)
+            if (!validName(name) || !bundle || bundle.type !== "lib" || !Number.isInteger(bundle.v) || !Array.isArray(bundle.defs) || bundle.defs.length < 1 || bundle.defs.length > 200 ||
+                !bundle.defs.every(d => d && typeof d.id === "string" && typeof d.caption === "string" && d.circuit && typeof d.circuit === "object") ||
+                new Set(bundle.defs.map(d => d.id)).size !== bundle.defs.length) throw fail(400,"Bibliothèque invalide.")
+            if (db.prepare("SELECT count(*) AS n FROM component_library WHERE user_id=?").get(u.id).n >= 200) throw fail(409,"Limite de 200 éléments dans la bibliothèque.")
+            const id=randomUUID(), now=Date.now()
+            db.prepare("INSERT INTO component_library VALUES(?,?,?,?,?)").run(id,u.id,name.trim(),JSON.stringify(bundle),now)
+            return json(res,201,{item:{id,name:name.trim(),created_at:now}})
+        }
+        const libraryMatch = /^\/api\/library\/([a-f0-9-]{36})$/.exec(path)
+        if (libraryMatch) {
+            const item = db.prepare("SELECT id,name,bundle,created_at FROM component_library WHERE id=? AND user_id=?").get(libraryMatch[1],u.id)
+            if (!item) throw fail(404,"Composant de bibliothèque introuvable.")
+            if (method === "GET") return json(res,200,{item:{...item,bundle:JSON.parse(item.bundle)}})
+            if (method === "DELETE") {
+                db.prepare("DELETE FROM component_library WHERE id=? AND user_id=?").run(item.id,u.id)
+                return json(res,200,{ok:true})
+            }
+            throw fail(405,"Méthode non autorisée.")
+        }
         if (path === "/api/projects" && method === "GET") {
             const projects = db.prepare("SELECT id,name,revision,updated_at FROM projects WHERE user_id=? ORDER BY updated_at DESC").all(u.id)
             return json(res, 200, { projects })

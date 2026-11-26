@@ -15,6 +15,7 @@ import { ComponentList } from "./ComponentList"
 import { ComponentMenu, ComponentSection, getAllComponentTypes } from "./ComponentMenu"
 import { openPinLayoutDialog } from "./PinLayoutDialog"
 import { openComponentTestingDialog } from "./ComponentTestingDialog"
+import { openComponentLibraryDialog } from "./ComponentLibraryDialog"
 import { CurrentFormatVersion } from "./DataMigration"
 import { KeyInfoPanel } from "./KeyInfoPanel"
 import { MessageBar } from "./MessageBar"
@@ -1756,6 +1757,18 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         else this.editTools.undoMgr.takeSnapshot(undefined, true)
         this.clearDirty()
         this.recalcPropagateAndDrawIfNeeded()
+    }
+
+    public openComponentLibrary() {
+        if (this.mode < Mode.DESIGN || this.noLoadSave || !this.editorRoot.isMainEditor()) {
+            void this.appAlert("Revenez au circuit principal en mode édition pour gérer la bibliothèque.")
+            return
+        }
+        this._dontHogFocus = true
+        openComponentLibraryDialog(this, this.html.rootDiv, () => {
+            this._dontHogFocus = false
+            this.focus()
+        })
     }
 
     public editCustomComponentTests() {

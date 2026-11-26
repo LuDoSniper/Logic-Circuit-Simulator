@@ -1095,3 +1095,11 @@ svg text {
 .truth-unavailable { border: 1px solid var(--edge); border-radius: 10px; background: var(--chrome); padding: 18px; display: grid; gap: 12px; justify-items: start; }
 .truth-unavailable h3 { font-size: 17px; margin: 0; }
 .truth-unavailable p { color: var(--ink); }
+
+.component-library-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.component-library-column { min-width:0; border:1px solid var(--edge); border-radius:10px; padding:12px; display:grid; gap:10px; align-content:start; }
+.component-library-column h3 { margin:0; font-size:15px; }
+.component-library-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; background:var(--chrome); border:1px solid var(--edge); border-radius:8px; padding:9px; }
+.component-library-row > strong,.component-library-row > div { flex:1 0 100%; overflow-wrap:anywhere; }
+.component-library-row small { display:block; color:var(--muted); }
+@media(max-width:720px){ .component-library-grid { grid-template-columns:1fr; } }

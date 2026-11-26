@@ -3,7 +3,7 @@ import type { Input } from "./components/Input"
 import type { Output } from "./components/Output"
 import type { Component } from "./components/Component"
 import type { Wire } from "./components/Wire"
-import { circuitSignature, makeTruthInputs, type DevelopmentCase, type TestPort, type TruthTable } from "./CustomComponentTesting"
+import { circuitSignature, makeTruthInputs, TestGame, validBinary, type DevelopmentCase, type DevelopmentResult, type TestPort, type TruthTable } from "./CustomComponentTesting"
 import { binaryStringRepr, type LogicValue } from "./utils"
 
 type Port<T> = TestPort & { component: T }
@@ -68,6 +68,11 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     const outs = ports(components.filter((c): c is Output => c.def.type === "out"))
     const bits = ins.reduce((n,p) => n + p.bits, 0)
     const signature = () => circuitSignature(editor.factory.buildCustomTestingCircuit(root), id => editor.factory.getCustomDef(id)?.circuit)
+    const newId = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2)
+    function currentResults() {
+        try { if (draft.results?.signature === signature()) return draft.results.cases } catch { /* invalid circuit */ }
+        return {}
+    }
     const dialog = element("dialog", "component-testing-dialog")
     const header = element("header")
     header.append(element("small", "", "LOGIC / COMPONENT WORKBENCH"), element("h2", "", root.customDef.caption))
@@ -151,12 +156,24 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     function truthView() {
         const intro = element("p", "", "Les entrées sont générées automatiquement. Le simulateur mesure chaque sortie, ligne par ligne. Ce relevé décrit le comportement observé, il ne prouve pas sa justesse.")
         body.append(intro)
-        if (bits > MAX_BITS || !ins.length || !outs.length) {
-            body.append(element("p", "", "Table exhaustive disponible de 1 à " + MAX_BITS + " bits d’entrée, avec au moins une sortie. Utilisez les tests personnalisés pour les circuits plus larges."))
+        function unavailable(reason: string, title = "Table de vérité indisponible") {
+            const panel = element("section", "truth-unavailable")
+            panel.append(element("h3", "", title), element("p", "", reason),
+                button("Ouvrir les tests de développement", () => { tab = "custom"; render() }, "primary"))
+            body.append(panel)
+        }
+        if (bits > MAX_BITS) {
+            const rows = bits <= 52 ? (2 ** bits).toLocaleString("fr-FR") : "2^" + bits
+            unavailable("Ce composant possède " + bits + " bits d’entrée, soit " + rows + " combinaisons. La limite du simulateur est de " + MAX_BITS + " bits (1 024 lignes). Une table exhaustive est théoriquement possible pour un circuit combinatoire, mais elle ne peut pas être générée ici.", "Table exhaustive trop volumineuse")
             return
         }
-        let currentSignature: string | undefined
-        try { currentSignature = signature() } catch (error) { report(error) }
+        if (!ins.length || !outs.length) {
+            unavailable("Il faut au moins une entrée non constante et une sortie.")
+            return
+        }
+        let currentSignature: string
+        try { collectCombinational(root); currentSignature = signature() }
+        catch (error) { unavailable(error instanceof Error ? error.message : String(error), "Table de vérité impossible en l’état"); return }
         const count = 2 ** bits
         const progress = element("progress")
         progress.max = count
@@ -218,43 +235,114 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     }
     function customView() {
         body.append(element("p", "", "Définissez les entrées et les sorties attendues. Ces cas restent privés à l’édition du composant et ne sont jamais affichés au survol."))
-        const result = new Map<string,string>()
+        const result: Record<string, DevelopmentResult> = Object.assign(Object.create(null), currentResults())
         const toolbar = element("div", "component-testing-toolbar")
         const runAll = button("▶ Exécuter les tests", () => {
             void execute(async evaluate => {
-                runAll.disabled = add.disabled = true
+                runAll.disabled = add.disabled = importButton.disabled = exportButton.disabled = true
+                const testedSignature = signature()
+                for (const key of Object.keys(result)) delete result[key]
+                draft.results = { signature: testedSignature, cases: result }
+                updateResults()
                 try {
                     for (const test of draft.cases) {
                         if (cancelled) break
                         try {
                             const actual = evaluate(ins.map(p => test.inputs[p.id] ?? ""))
                             const expected = outs.map(p => test.expected[p.id] ?? "")
-                            result.set(test.id, expected.every((value,i) => value === actual[i]) ? "Réussi" : "Échec · obtenu " + actual.join(" / "))
-                        } catch (error) { result.set(test.id, error instanceof Error ? error.message : String(error)) }
+                            if (!outs.every((p,i) => validBinary(expected[i],p.bits))) throw new Error("Sortie attendue invalide.")
+                            result[test.id] = { status: expected.every((value,i) => value === actual[i]) ? "pass" : "fail", actual: Object.fromEntries(outs.map((p,i) => [p.id,actual[i]])) }
+                        } catch (error) { result[test.id] = { status: "error", message: error instanceof Error ? error.message : String(error) } }
                         updateResults()
                         await pause()
                     }
-                } finally { runAll.disabled = add.disabled = false }
+                } finally { runAll.disabled = add.disabled = importButton.disabled = exportButton.disabled = false }
             })
         }, "primary")
         const add = button("+ Ajouter un test", () => {
             const test: DevelopmentCase = {
-                id: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2), name: "Test " + (draft.cases.length+1),
+                id: newId(), name: "Test " + (draft.cases.length+1),
                 inputs: Object.fromEntries(ins.map(p => [p.id,"0".repeat(p.bits)])),
                 expected: Object.fromEntries(outs.map(p => [p.id,"0".repeat(p.bits)])),
             }
             draft.cases.push(test)
             render()
         })
-        toolbar.append(add,runAll)
+        const importButton = button("Importer JSON", () => {
+            const picker = element("input")
+            picker.type = "file"
+            picker.accept = ".json,application/json"
+            picker.addEventListener("change", () => {
+                const file = picker.files?.[0]
+                if (!file) return
+                void (async () => {
+                    try {
+                        if (file.size > 8 * 1024 * 1024) throw new Error("Fichier trop volumineux.")
+                        const decoded = TestGame.decode(JSON.parse(await file.text()))
+                        if (decoded._tag !== "Right") throw new Error("Format de jeu de tests invalide (logic-remaster-tests v1).")
+                        const game = decoded.right
+                        if (game.cases.length > 1000 || draft.cases.length + game.cases.length > 1000) throw new Error("Limite : 1 000 cas par composant.")
+                        async function mapPorts(source: TestPort[], target: TestPort[], kind: string) {
+                            if (source.length !== target.length) throw new Error("Nombre de " + kind + " différent du composant.")
+                            const mapping = new Map<string,string>()
+                            const used = new Set<string>()
+                            for (const p of source) {
+                                if (!Number.isInteger(p.bits) || p.bits < 1 || mapping.has(p.id)) throw new Error("Port invalide ou dupliqué.")
+                                const available = target.filter(t => t.bits === p.bits && !used.has(t.id))
+                                let matched = available.find(t => t.name.toLowerCase() === p.name.toLowerCase())
+                                if (!matched) {
+                                    const choices = available.map(t => t.id + " (" + t.name + ")").join(", ")
+                                    const id = await editor.appPrompt("Associer " + kind + " « " + p.name + " » (" + p.bits + " bits). Saisissez un identifiant parmi : " + choices, available.length === 1 ? available[0].id : "")
+                                    if (id === null) throw new Error("Import annulé.")
+                                    matched = available.find(t => t.id === id.trim())
+                                }
+                                if (!matched) throw new Error("Association impossible pour " + p.name)
+                                mapping.set(p.id,matched.id)
+                                used.add(matched.id)
+                            }
+                            return mapping
+                        }
+                        const im = await mapPorts(game.inputs,ins,"entrée")
+                        const om = await mapPorts(game.outputs,outs,"sortie")
+                        function mapValues(values: Record<string,string>, ports: TestPort[], mapping: Map<string,string>) {
+                            if (Object.keys(values).length !== ports.length) throw new Error("Colonnes manquantes ou supplémentaires dans un test.")
+                            return Object.fromEntries(ports.map(p => {
+                                const value = values[p.id]
+                                if (!validBinary(value,p.bits)) throw new Error("Valeur binaire invalide pour " + p.name)
+                                return [mapping.get(p.id)!,value]
+                            }))
+                        }
+                        const cases = game.cases.map(c => ({ id: newId(), name: c.name, inputs: mapValues(c.inputs,game.inputs,im), expected: mapValues(c.expected,game.outputs,om) }))
+                        if (!dialog.isConnected || running) return
+                        draft.cases.push(...cases)
+                        render()
+                        notice.textContent = cases.length + " test(s) importé(s), sans résultats. Lancez leur exécution."
+                    } catch (error) { report(error) }
+                })()
+            }, { once: true })
+            picker.click()
+        })
+        const exportButton = button("Exporter JSON", () => {
+            const results = currentResults()
+            const game: TestGame = { format: "logic-remaster-tests", version: 1, component: root.customDef.caption,
+                inputs: plain(ins), outputs: plain(outs), cases: structuredClone(draft.cases),
+                ...(Object.keys(results).length ? { results: Object.fromEntries(draft.cases.filter(c => results[c.id] !== undefined).map(c => [c.id,results[c.id]])) } : {}) }
+            const url = URL.createObjectURL(new Blob([JSON.stringify(game,null,2)], { type: "application/json" }))
+            const a = element("a")
+            a.href = url
+            a.download = root.customDef.customId + ".tests.json"
+            a.click()
+            setTimeout(() => URL.revokeObjectURL(url),1000)
+        })
+        toolbar.append(add,runAll,importButton,exportButton)
         body.append(toolbar)
         const list = element("div","component-test-cases")
         const resultElements = new Map<string,HTMLElement>()
         function updateResults() {
             for (const [id,node] of resultElements) {
-                const text = result.get(id) ?? "Non exécuté"
-                node.textContent = text
-                node.dataset.result = text === "Réussi" ? "pass" : result.has(id) ? "fail" : "idle"
+                const r = result[id]
+                node.textContent = !r ? "Non exécuté" : r.status === "pass" ? "Réussi" : r.status === "fail" ? "Échec · obtenu " + outs.map(p => r.actual?.[p.id] ?? "—").join(" / ") : r.message ?? "Erreur"
+                node.dataset.result = r?.status === "pass" ? "pass" : r ? "fail" : "idle"
             }
         }
         for (const test of draft.cases) {
@@ -266,7 +354,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
             name.addEventListener("input", () => { test.name = name.value })
             const state = element("span","component-test-result")
             resultElements.set(test.id,state)
-            const remove = button("Supprimer", () => { if (running) return; draft.cases = draft.cases.filter(c => c.id !== test.id); render() })
+            const remove = button("Supprimer", () => { if (running) return; draft.cases = draft.cases.filter(c => c.id !== test.id); if (draft.results) delete draft.results.cases[test.id]; render() })
             head.append(name,state,remove)
             const fields = element("div","component-test-fields")
             for (const [title,ps,record] of [["Entrées",ins,test.inputs],["Sorties attendues",outs,test.expected]] as const) {
@@ -279,7 +367,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                     input.value = record[p.id] ?? ""
                     input.maxLength = p.bits
                     input.pattern = "[01]{" + p.bits + "}"
-                    input.addEventListener("input", () => { record[p.id] = input.value; result.delete(test.id); updateResults() })
+                    input.addEventListener("input", () => { record[p.id] = input.value; delete result[test.id]; if (draft.results) delete draft.results.cases[test.id]; updateResults() })
                     label.append(input)
                     group.append(label)
                 }

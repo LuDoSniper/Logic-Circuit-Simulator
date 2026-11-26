@@ -7,7 +7,19 @@ export const ComponentTesting = t.type({
     description: t.string, showDescription: t.boolean, showTruth: t.boolean,
     cases: t.array(Case), 
 })
-export const ComponentDocumentation = t.intersection([ComponentTesting, t.partial({ truth: Truth })])
+export const DevelopmentResult = t.intersection([t.type({ status: t.keyof({ pass: null, fail: null, error: null }) }), t.partial({ actual: t.record(t.string, t.string), message: t.string })])
+export type DevelopmentResult = t.TypeOf<typeof DevelopmentResult>
+const ResultSet = t.type({ signature: t.string, cases: t.record(t.string, DevelopmentResult) })
+export const ComponentDocumentation = t.intersection([ComponentTesting, t.partial({ truth: Truth, results: ResultSet })])
+// Exchange keys are independent of the internal IDs in the receiving circuit.
+export const TestGame = t.intersection([t.type({
+    format: t.literal("logic-remaster-tests"), version: t.literal(1),
+    inputs: t.array(Port), outputs: t.array(Port), cases: t.array(Case),
+}), t.partial({ component: t.string, results: t.unknown })])
+export type TestGame = t.TypeOf<typeof TestGame>
+export function validBinary(value: unknown, bits: number): value is string {
+    return typeof value === "string" && value.length === bits && /^[01]+$/.test(value)
+}
 export type ComponentDocumentation = t.TypeOf<typeof ComponentDocumentation>
 export type TruthTable = t.TypeOf<typeof Truth>
 export type DevelopmentCase = t.TypeOf<typeof Case>

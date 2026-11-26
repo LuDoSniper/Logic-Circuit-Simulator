@@ -1091,3 +1091,7 @@ svg text {
 .component-test-toggle { display: flex; align-items: center; gap: 8px; }
 .custom-tooltip-description { white-space: pre-wrap; overflow-wrap: anywhere; }
 .custom-tooltip-truth { max-height: 300px; max-width: 500px; overflow: auto; margin-top: 6px; }
+
+.truth-unavailable { border: 1px solid var(--edge); border-radius: 10px; background: var(--chrome); padding: 18px; display: grid; gap: 12px; justify-items: start; }
+.truth-unavailable h3 { font-size: 17px; margin: 0; }
+.truth-unavailable p { color: var(--ink); }

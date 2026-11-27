@@ -1,5 +1,6 @@
 import { Bezier, Offset } from "bezier-js"
 import * as t from "io-ts"
+import { busConnectionMode } from "../BusBits"
 import { BezierCoords, COLOR_ANCHOR_NEW, COLOR_COMPONENT_KEY, COLOR_MOUSE_OVER, COLOR_UNKNOWN, COLOR_WIRE, GRID_STEP, LineCoords, NodeStyle, OPACITY_HIDDEN_ITEMS, WAYPOINT_DIAMETER, WIRE_WIDTH, colorForLogicValue, distSquaredToWaypointIfOver, drawAnchorTo, drawStraightWireLine, drawWaypoint, makeBezierCoords, strokeWireOutline, strokeWireOutlineAndSingleValue, strokeWireValue } from "../drawutils"
 import { div, span, style, title, tooltipContent } from "../htmlgen"
 import { DrawParams } from "../LogicEditor"
@@ -1174,7 +1175,7 @@ export class LinkManager {
                 const [a2x, a2y] = bezierAnchorForWire(outgoingOrient, x2, y2, bezierAnchorPointDistX, bezierAnchorPointDistY)
                 g.bezierCurveTo(a1x, a1y, a2x, a2y, x2, y2)
             }
-            if (!this._singleBitDrag && nodeFrom.group?.isBusPort) {
+            if (nodeFrom.group?.isCompactBus) {
                 g.strokeStyle = "#6485ad"
                 g.lineWidth = 6
                 g.stroke()
@@ -1294,17 +1295,21 @@ export class LinkManager {
         if (!nodes) return undefined
         const [out, input] = nodes
         const source = out.group, target = input.group
-        // A normal drag between two multi-bit terminals connects bit i to bit i.
-        // Shift retains the original individual-wire gesture.
-        if (!useSingle && from && from.isOutput() !== newNode.isOutput() && source?.isBusPort && target?.isBusPort) {
-            if (source.nodes.length !== target.nodes.length) {
-                this.parent.editor.showMessage("Bus incompatibles : " + source.nodes.length + " → " + target.nodes.length + " bits. Utilisez un convertisseur ou Maj pour un seul bit.")
-                return undefined
-            }
-            if (target.nodes.some(n => !n.acceptsMoreConnections)) {
-                this.parent.editor.showMessage("Certaines broches du bus sont déjà connectées. Déconnectez-les ou utilisez Maj pour un seul bit.")
-                return undefined
-            }
+        const mode = busConnectionMode(
+            source?.isBusPort ? {width: source.nodes.length, compact: source.isCompactBus} : undefined,
+            target?.isBusPort ? {width: target.nodes.length, compact: target.isCompactBus} : undefined,
+            useSingle, from !== undefined && from.isOutput() !== newNode.isOutput(),
+            target?.nodes.every(n => n.acceptsMoreConnections) ?? false,
+        )
+        if (mode === "width") {
+            this.parent.editor.showMessage("Bus incompatibles : une broche de bus compacte nécessite un groupe de même largeur. Utilisez un Bus Merger, un Bus Splitter ou un convertisseur.")
+            return undefined
+        }
+        if (mode === "occupied") {
+            this.parent.editor.showMessage("Certaines broches du bus sont déjà connectées. Déconnectez-les avant de relier le bus.")
+            return undefined
+        }
+        if (mode === "bus" && source && target) {
             const created: Wire[] = []
             for (let i = 0; i < source.nodes.length; i++) {
                 const wire = this.addWire(source.nodes[i], target.nodes[i], false, true)
@@ -1316,10 +1321,6 @@ export class LinkManager {
             }
             this.parent.editor.showMessage("Bus " + created.length + " bits connecté")
             return created[0]
-        }
-        if (source?.isCompactBus || target?.isCompactBus) {
-            this.parent.editor.showMessage("Une broche de bus attend un groupe de même largeur. Utilisez un Bus Merger ou Bus Splitter pour les fils individuels.")
-            return undefined
         }
         return this.addWire(out, input, true)
     }

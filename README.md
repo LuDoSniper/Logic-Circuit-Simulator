@@ -72,3 +72,5 @@ In a custom component’s Appearance editor, each multi-bit port can independent
 ### Internal outputs
 
 Right-click any output (including multi-bit outputs) and enable Internal output. The live signal remains visible in the internal circuit, but the output is not exposed as a custom component port, is not listed in the Appearance editor or the component development tests, and needs no external port name. The optional `isInternal` flag is persisted in circuit and library exports; older outputs remain external by default. Disabling the option exposes the output again when the component definition is saved.
+
+Independent gate operands are not bus ports. Dragging between expanded pin groups of different widths connects the selected individual bits. Matching free bus groups still connect together by default; Shift forces a single bit on expanded pins. Compact bus terminals require a complete width-matched connection.

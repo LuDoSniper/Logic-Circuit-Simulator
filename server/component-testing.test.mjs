@@ -41,7 +41,7 @@ test("portable overflow example has eight valid independent cases", () => {
     assert.equal(game.results,undefined)
 })
 
-import { resizeBus } from "../simulator/src/BusBits.ts"
+import { resizeBus, isBusPinGroup, busConnectionMode } from "../simulator/src/BusBits.ts"
 test("bus converter preserves LSB order, slices and extends", () => {
     assert.deepEqual(resizeBus([1,0,1,1],2,0,false,0),[1,0])
     assert.deepEqual(resizeBus([1,0,1,1],2,2,false,0),[1,1])
@@ -73,4 +73,27 @@ test("changing an output to internal invalidates previously recorded component t
     const before = circuitSignature(circuit,() => undefined)
     circuit.components.carry.isInternal = true
     assert.notEqual(circuitSignature(circuit,() => undefined),before)
+})
+
+test("gate operands are scalar pins, never a data bus", () => {
+    assert.equal(isBusPinGroup("gate","In",2),false)
+    assert.equal(isBusPinGroup("gate","In",8),false)
+    assert.equal(isBusPinGroup("gate1","In",1),false)
+    assert.equal(isBusPinGroup("bus-splitter","Bits",8),false)
+    assert.equal(isBusPinGroup("bus-merger","Bus",8),true)
+    assert.equal(isBusPinGroup("in","Out",8),true)
+    assert.equal(isBusPinGroup("custom-au","A",8),true)
+})
+test("expanded groups allow scalar wiring but compact ports enforce bus widths", () => {
+    const expanded = {width:8,compact:false}, compact = {width:8,compact:true}, narrow = {width:2,compact:false}
+    assert.equal(busConnectionMode(expanded,undefined,false,true,true),"scalar")
+    assert.equal(busConnectionMode(expanded,narrow,false,true,true),"scalar")
+    assert.equal(busConnectionMode(expanded,expanded,false,true,false),"scalar")
+    assert.equal(busConnectionMode(expanded,expanded,false,true,true),"bus")
+    assert.equal(busConnectionMode(expanded,expanded,true,true,true),"scalar")
+    assert.equal(busConnectionMode(compact,expanded,false,true,true),"bus")
+    assert.equal(busConnectionMode(expanded,compact,true,true,true),"bus")
+    assert.equal(busConnectionMode(compact,narrow,false,true,true),"width")
+    assert.equal(busConnectionMode(compact,undefined,false,true,true),"width")
+    assert.equal(busConnectionMode(compact,expanded,false,true,false),"occupied")
 })

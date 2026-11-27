@@ -1,5 +1,6 @@
 import * as t from "io-ts"
 import JSON5 from "json5"
+import { isBusPinGroup } from "../BusBits"
 import type { ComponentForDef } from "../ComponentFactory"
 import type { ComponentKey, DefAndParams, LibraryButtonOptions, LibraryButtonProps, LibraryItem } from "../ComponentMenu"
 import { DrawParams, LogicEditor } from "../LogicEditor"
@@ -135,10 +136,9 @@ export class NodeGroup<TNode extends Node> {
         return this._nodes
     }
 
-    /** The breakout side is deliberately scalar even though the bits are stored in a group. */
+    /** Grouping pins for layout does not necessarily make them a data bus. */
     public get isBusPort(): boolean {
-        return this._nodes.length > 1 && !(this.name === "Bits" &&
-            (this.parent.def.type === "bus-merger" || this.parent.def.type === "bus-splitter"))
+        return isBusPinGroup(this.parent.def.type, this.name, this._nodes.length)
     }
 
     /** A compact bus terminal exposes all its lanes at a single connection point. */

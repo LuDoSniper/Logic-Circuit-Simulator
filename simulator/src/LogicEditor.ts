@@ -2200,14 +2200,25 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
     }
 
     public saveToFile(onlyCustomComponents?: boolean) {
-        const saveLib = onlyCustomComponents === true && this.factory.hasCustomComponents()
-        const dataObject = saveLib
-            ? Serialization.buildLibraryObject(this)
-            : Serialization.buildCircuitObject(this)
-        const jsonStr = Serialization.stringifyObject(dataObject, false)
-        const blob = new Blob([jsonStr], { type: 'application/json5' })
-        const filename = this.documentDisplayName + (saveLib ? "-lib" : "") + ".json"
-        saveAs(blob, filename)
+        try {
+            if (this.editorRoot instanceof CustomComponent && !onlyCustomComponents) {
+                const bundle = this.factory.exportEditedComponent(this.editorRoot)
+                const filename = this.editorRoot.customDef.caption.replace(/[^a-zA-Z0-9_-]+/g,"_") + ".components.json"
+                saveAs(new Blob([JSON.stringify(bundle,null,2)],{type:"application/json"}),filename)
+                return
+            }
+            const saveLib = onlyCustomComponents === true && this.factory.hasCustomComponents()
+            const dataObject = saveLib
+                ? Serialization.buildLibraryObject(this)
+                : Serialization.buildCircuitObject(this)
+            const jsonStr = Serialization.stringifyObject(dataObject, false)
+            const blob = new Blob([jsonStr], { type: 'application/json5' })
+            const filename = this.documentDisplayName + (saveLib ? "-lib" : "") + ".json"
+            saveAs(blob, filename)
+        } catch (error) {
+            console.error("Export failed:",error)
+            void this.appAlert((getLang() === "fr" ? "Export impossible : " : "Export failed: ") + (error instanceof Error ? error.message : String(error)))
+        }
     }
 
     /**

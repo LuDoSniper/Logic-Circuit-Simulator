@@ -174,3 +174,18 @@ test("circuit camera frames off-origin content without moving geometry", () => {
     assert.equal(circuitBounds([]),undefined)
     assert.equal(points[0].posX,10100)
 })
+
+import { testInputPhases, applyOptionalToJSON } from "../simulator/src/ComponentTestExecution.ts"
+test("manual clock sequence prepares data before rising edges and preserves held levels", () => {
+    const clocks = [false,false,true]
+    assert.deepEqual(testInputPhases(["00","0","0"],["10","1","1"],clocks),[[0,1],[2]])
+    assert.deepEqual(testInputPhases(["10","1","1"],["01","0","0"],clocks),[[2],[0,1]])
+    assert.deepEqual(testInputPhases(["10","1","1"],["01","1","1"],clocks),[[0]])
+    assert.deepEqual(testInputPhases(["10","1","1"],["10","1","1"],clocks),[])
+})
+test("pretty serialization preserves null and supports objects with toJSON", () => {
+    assert.equal(applyOptionalToJSON(null),null)
+    assert.equal(applyOptionalToJSON(undefined),undefined)
+    assert.equal(applyOptionalToJSON({toJSON:()=>null}),null)
+    assert.deepEqual(applyOptionalToJSON({colorOverride:null}),{colorOverride:null})
+})

@@ -2,9 +2,9 @@ import type { CustomComponent } from "./components/CustomComponent"
 import type { Input } from "./components/Input"
 import type { Output } from "./components/Output"
 import type { Component } from "./components/Component"
-import type { Wire } from "./components/Wire"
+import { testInputPhases } from "./ComponentTestExecution"
 import { circuitSignature, makeTruthInputs, summarizeDevelopmentResults, TestGame, validBinary, type DevelopmentCase, type DevelopmentResult, type TestPort, type TruthTable } from "./CustomComponentTesting"
-import { binaryStringRepr, type LogicValue } from "./utils"
+import { binaryStringRepr } from "./utils"
 import { getLang } from "./strings"
 
 const tr = (fr: string, en: string) => getLang() === "fr" ? fr : en
@@ -30,8 +30,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, te
 
 // A truth table is only meaningful for combinational circuits. Reject feedback and
 // known stateful sources, including those hidden inside nested custom components.
-function collectCombinational(root: CustomComponent): Wire[] {
-    const wires: Wire[] = []
+function collectCombinational(root: CustomComponent) {
     const inspect = (container: CustomComponent) => {
         const components = [...container.components.all()]
         const visited = new Set<Component>(), visiting = new Set<Component>()
@@ -45,7 +44,6 @@ function collectCombinational(root: CustomComponent): Wire[] {
             graph.set(comp, [])
         }
         for (const wire of container.linkMgr.wires) {
-            wires.push(wire)
             const source = wire.startNode.component, target = wire.endNode.component
             graph.get(source)?.push(target)
         }
@@ -60,7 +58,6 @@ function collectCombinational(root: CustomComponent): Wire[] {
         for (const comp of components) visit(comp)
     }
     inspect(root)
-    return wires
 }
 
 export function openComponentTestingDialog(root: CustomComponent, host: HTMLElement, onClose: () => void) {
@@ -120,40 +117,60 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     function requirePorts() {
         if (!ins.length || !outs.length) throw new Error(tr("Ajoutez au moins une entrée non constante et une sortie.","Add at least one non-constant input and one output."))
     }
-    async function execute(action: (evaluate: (values: string[]) => string[]) => Promise<void>) {
+    async function execute(action: (evaluate: (values: string[]) => string[]) => Promise<void>, sequential = false) {
         if (running) return
         setRunning(true)
         notice.textContent = ""
-        const original = new Map<Input, LogicValue[]>()
-        const delays = new Map<Wire, number | undefined>()
         try {
             requirePorts()
-            // Validate current circuit and run only combinational cases. Temporarily
-            // bypass propagation delays, then restore switches and delays in finally.
+            if (!sequential) collectCombinational(root)
             signature()
-            for (const wire of collectCombinational(root)) { delays.set(wire, wire.customPropagationDelay); wire.customPropagationDelay = 0 }
-            for (const port of ins) original.set(port.component, port.component.value.slice())
+            const sandbox = editor.factory.createComponentTestSandbox(root)
+            const mapped = new Map(sandbox.components.map(c => [c.ref,c]))
+            const inputs = ins.map(p => {
+                const comp = mapped.get(p.id)
+                if (!comp || comp.def.type !== "in") throw new Error("Missing test input: " + p.name)
+                return comp as Input
+            })
+            const outputs = outs.map(p => {
+                const comp = mapped.get(p.id)
+                if (!comp || comp.def.type !== "out") throw new Error("Missing test output: " + p.name)
+                return comp as Output
+            })
+            const clocks = ins.map((p,i) => p.bits === 1 && (/^(clk|clock|horloge)$/i.test(p.name) || inputs[i].isLinkedToSomeClock))
+            const applyValues = (values: string[], indexes: readonly number[]) => {
+                for (const i of indexes) {
+                    inputs[i].setValue([...values[i]].reverse().map(bit => bit === "1"))
+                    inputs[i].propagateCurrentValue()
+                }
+                sandbox.settle()
+            }
+            // Each execution starts from a fresh circuit with manual clocks low.
+            // No reset is invented: the suite must explicitly initialize its memory.
+            let previous = inputs.map(input => binaryStringRepr(input.value))
+            if (sequential) {
+                const initial = ins.map(p => "0".repeat(p.bits))
+                applyValues(initial,ins.map((_,i)=>i).filter(i=>clocks[i]))
+                applyValues(initial,ins.map((_,i)=>i).filter(i=>!clocks[i]))
+                previous = initial
+            }
             const evaluate = (values: string[]) => {
                 for (const [i, port] of ins.entries()) {
-                    const value = values[i]
-                    if (value.length !== port.bits || !/^[01]+$/.test(value)) throw new Error(tr("Valeur binaire incorrecte : ","Invalid binary value: ") + port.name)
-                    port.component.setValue([...value].reverse().map(bit => bit === "1"))
-                    port.component.propagateCurrentValue()
+                    if (!validBinary(values[i],port.bits)) throw new Error(tr("Valeur binaire incorrecte : ","Invalid binary value: ") + port.name)
                 }
-                root.recalcMgr.recalcAndPropagateIfNeeded()
-                return outs.map(port => binaryStringRepr(port.component.value))
+                const phases = sequential ? testInputPhases(previous,values,clocks) : [ins.map((_,i)=>i)]
+                for (const phase of phases) applyValues(values,phase)
+                previous = values.slice()
+                sandbox.settle()
+                sandbox.assertValid()
+                return outputs.map(port => binaryStringRepr(port.value))
             }
             await action(evaluate)
-        } catch (error) { report(error) }
-        finally {
-            try {
-                for (const [input,value] of original) { input.setValue(value); input.propagateCurrentValue() }
-                root.recalcMgr.recalcAndPropagateIfNeeded()
-            } finally {
-                for (const [wire,delay] of delays) wire.customPropagationDelay = delay
-                setRunning(false)
-                editor.recalcPropagateAndDrawIfNeeded()
-            }
+        } catch (error) {
+            report(error)
+            console.error("Component test execution failed:",error)
+        } finally {
+            setRunning(false)
         }
     }
     function truthView() {
@@ -165,6 +182,8 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                 button(tr("Ouvrir les tests de développement","Open development tests"), () => { tab = "custom"; render() }, "primary"))
             body.append(panel)
         }
+        try { collectCombinational(root) }
+        catch (error) { unavailable(error instanceof Error ? error.message : String(error), tr("Table de vérité impossible en l’état","Truth table unavailable for this circuit")); return }
         if (bits > MAX_BITS) {
             const rows = bits <= 52 ? (2 ** bits).toLocaleString(getLang() === "fr" ? "fr-FR" : "en-US") : "2^" + bits
             unavailable("Ce composant possède " + bits + " bits d’entrée, soit " + rows + " combinaisons. La limite du simulateur est de " + MAX_BITS + " bits (1 024 lignes). Une table exhaustive est théoriquement possible pour un circuit combinatoire, mais elle ne peut pas être générée ici.", tr("Table exhaustive trop volumineuse","Exhaustive table too large"))
@@ -175,7 +194,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
             return
         }
         let currentSignature: string
-        try { collectCombinational(root); currentSignature = signature() }
+        try { currentSignature = signature() }
         catch (error) { unavailable(error instanceof Error ? error.message : String(error), tr("Table de vérité impossible en l’état","Truth table unavailable for this circuit")); return }
         const count = 2 ** bits
         const progress = element("progress")
@@ -238,6 +257,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     }
     function customView() {
         body.append(element("p", "", tr("Définissez les entrées et les sorties attendues. Ces cas restent privés à l’édition du composant et ne sont jamais affichés au survol.","Define inputs and expected outputs. These cases are only visible in the component editor, not in tooltips.")))
+        body.append(element("p","",tr("Les cas sont exécutés dans l’ordre sur une copie isolée ; l’état est conservé entre les cas. Les horloges manuelles commencent à 0. Préparez les données avant le front actif.","Cases run in order on an isolated copy; state is preserved between cases. Manual clocks start at 0. Prepare data before the active edge.")))
         const result: Record<string, DevelopmentResult> = Object.assign(Object.create(null), currentResults())
         const toolbar = element("div", "component-testing-toolbar")
         const runAll = button(tr("▶ Exécuter les tests","▶ Run tests"), () => {
@@ -261,7 +281,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                     }
                     if (cancelled) notice.textContent = tr("Exécution interrompue. Les résultats obtenus sont conservés.","Run stopped. Completed results are kept.")
                 } finally { runAll.disabled = add.disabled = importButton.disabled = exportButton.disabled = false }
-            })
+            }, true)
         }, "primary")
         const add = button(tr("+ Ajouter un test","+ Add test"), () => {
             const test: DevelopmentCase = {

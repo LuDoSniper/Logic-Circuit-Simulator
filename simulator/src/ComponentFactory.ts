@@ -1,9 +1,13 @@
 import * as t from "io-ts"
 import JSON5 from "json5"
 import { LogicEditor } from "./LogicEditor"
-import { Serialization, type Library } from "./Serialization"
+import { Serialization, PostLoadActions_None, type Library } from "./Serialization"
+import { ComponentList } from "./ComponentList"
+import { NodeManager } from "./NodeManager"
+import { RecalcManager } from "./RedrawRecalcManager"
+import { LinkManager } from "./components/Wire"
 import { CurrentFormatVersion } from "./DataMigration"
-import { TestCaseCombinational, TestCaseCombinationalRepr } from "./TestSuite"
+import { TestCaseCombinational, TestCaseCombinationalRepr, TestSuites } from "./TestSuite"
 import { ALU, ALUDef } from "./components/ALU"
 import { Add3IfGeq5, Add3IfGeq5Def } from "./components/Add3IfGeq5"
 import { Adder, AdderDef } from "./components/Adder"
@@ -13,7 +17,7 @@ import { BusConverter, BusConverterDef } from "./components/BusConverter"
 import { BusMerger, BusMergerDef, BusSplitter, BusSplitterDef } from "./components/BusAdapter"
 import { Clock, ClockDef } from "./components/Clock"
 import { Comparator, ComparatorDef } from "./components/Comparator"
-import { Component, ComponentBase, ComponentRepr } from "./components/Component"
+import { Component, ComponentBase, ComponentRepr, ComponentState } from "./components/Component"
 import { ControlledInverter, ControlledInverterDef } from "./components/ControlledInverter"
 import { Counter, CounterDef } from "./components/Counter"
 import { CustomComponent, CustomComponentDef, CustomComponentDefRepr, CustomComponentPrefix } from "./components/CustomComponent"
@@ -56,7 +60,7 @@ import { TrafficLights, TrafficLightsDef } from "./components/TrafficLights"
 import { TristateBuffer, TristateBufferDef } from "./components/TristateBuffer"
 import { TristateBufferArray, TristateBufferArrayDef } from "./components/TristateBufferArray"
 import { S } from "./strings"
-import { binaryStringRepr, isArray, isRecord, isString, validateJson, valuesReprForTest } from "./utils"
+import { ParentType, binaryStringRepr, isArray, isRecord, isString, validateJson, valuesReprForTest } from "./utils"
 
 
 export type ComponentForDef<TDef> = Component & (
@@ -365,13 +369,13 @@ export class ComponentFactory {
     }
 
     /** Export a self-contained snapshot, including nested custom definitions. */
-    public exportComponentBundle(ids: readonly string[]): Library {
+    public exportComponentBundle(ids: readonly string[], draft?: CustomComponentDef): Library {
         const defs: CustomComponentDefRepr[] = []
         const done = new Set<string>(), visiting = new Set<string>()
         const visit = (id: string) => {
             if (visiting.has(id)) throw new Error("Dépendance circulaire : " + id)
             if (done.has(id)) return
-            const def = this.getCustomDef(id)
+            const def = draft?.customId === id ? draft : this.getCustomDef(id)
             if (!def) throw new Error("Composant manquant : " + id)
             visiting.add(id)
             for (const repr of Object.values(def.circuit.components ?? {})) {
@@ -679,6 +683,65 @@ export class ComponentFactory {
         const checked = this.checkComponentsForCustomDef([...root.components.all()], false)
         if (isString(checked)) throw new Error(checked)
         return Serialization.buildComponentsAndWireObject(checked.components, [], undefined)
+    }
+
+    /** Export the current editable draft without replacing its live definition. */
+    public exportEditedComponent(root: CustomComponent): Library {
+        const circuit = this.buildCustomTestingCircuit(root)
+        const draft = new CustomComponentDef({
+            id: root.customDef.customId, caption: root.customDef.caption,
+            circuit: { components: structuredClone(circuit.components), wires: structuredClone(circuit.wires) },
+            ...(root.draftPinLayout === undefined ? {} : { pinLayout: structuredClone(root.draftPinLayout) }),
+            ...(root.draftSymbolSize === undefined ? {} : { symbolSize: root.draftSymbolSize }),
+            ...(root.draftSymbolColor === undefined ? {} : { symbolColor: root.draftSymbolColor }),
+            documentation: structuredClone(root.draftDocumentation),
+        })
+        return this.exportComponentBundle([draft.customId],draft)
+    }
+
+    /** Separate node/recalc managers prevent tests from mutating the live editor or its memory. */
+    public createComponentTestSandbox(root: CustomComponent) {
+        const circuit = this.buildCustomTestingCircuit(root)
+        const inspect = (container: CustomComponent) => {
+            for (const comp of container.components.all()) {
+                if (comp.def.type === "clock" || comp.def.type === "rand" || comp.def.type === "random") {
+                    throw new Error("Les tests nécessitent des entrées d’horloge manuelles et des signaux déterministes (" + comp.def.type + ").")
+                }
+                if (comp instanceof CustomComponent) inspect(comp)
+            }
+        }
+        inspect(root)
+        class Sandbox implements DrawableParent {
+            public readonly type = ParentType.CUSTOM_COMPONENT
+            public readonly components = new ComponentList()
+            public readonly nodeMgr = new NodeManager()
+            public readonly recalcMgr = new RecalcManager()
+            public readonly linkMgr = new LinkManager(this)
+            public readonly testSuites = new TestSuites(this)
+            public readonly ifEditing = undefined
+            public readonly componentCreationParams = { isXRay: false }
+            public get editor() { return root.editor }
+            public get mode() { return root.mode }
+            public isMainEditor(): this is LogicEditor { return false }
+            public stopEditingThis() {}
+            public startEditingThis() {}
+        }
+        const sandbox = new Sandbox()
+        const error = Serialization.loadCircuit(sandbox, structuredClone(circuit), PostLoadActions_None, { immediateWirePropagation:true, skipMigration:true })
+        if (error !== undefined) throw new Error(error)
+        if ([...sandbox.components.all()].length !== Object.keys(circuit.components ?? {}).length ||
+            sandbox.linkMgr.wires.length !== (circuit.wires?.length ?? 0)) throw new Error("Impossible de charger intégralement le circuit de test.")
+        const assertValid = (container: DrawableParent) => {
+            for (const comp of container.components.all()) {
+                if (comp.state === ComponentState.INVALID) throw new Error("Simulation instable ou composant invalide : " + comp.ref)
+                if (comp instanceof CustomComponent) assertValid(comp)
+            }
+        }
+        return {
+            components: [...sandbox.components.all()],
+            settle: () => { sandbox.recalcMgr.recalcAndPropagateIfNeeded() },
+            assertValid: () => assertValid(sandbox),
+        }
     }
 
     public async tryModifyCustomComponent(def: CustomComponentDef, defRoot: CustomComponent): Promise<undefined | string> {

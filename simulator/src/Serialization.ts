@@ -1,5 +1,6 @@
 import * as t from "io-ts"
 import { translateWaypoint } from "./CircuitGeometry"
+import { applyOptionalToJSON } from "./ComponentTestExecution"
 import JSON5 from "json5"
 import * as json5util from "json5/lib/util"
 import { CurrentFormatVersion, migrateData } from './DataMigration'
@@ -694,9 +695,7 @@ export function stringifySmart(
     let replacer = options.replacer
 
     return (function _stringify(obj: any, currentIndent: string, reserved: number): string {
-        if (obj !== undefined && typeof obj.toJSON === "function") {
-            obj = obj.toJSON()
-        }
+        obj = applyOptionalToJSON(obj)
 
         const string = JSON5.stringify(obj, replacer)
 

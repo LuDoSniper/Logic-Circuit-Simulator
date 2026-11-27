@@ -1192,3 +1192,6 @@ svg text {
     background-color: Highlight;
   }
 }
+
+#logicEditorRoot .pin-layout-row .pin-bus-toggle { flex:none; min-width:40px; font-weight:650; }
+#logicEditorRoot .pin-layout-row .pin-bus-toggle.active { color:var(--accent); border-color:var(--accent); background:var(--hover); }

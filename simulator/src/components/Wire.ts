@@ -206,13 +206,14 @@ export class Wire extends Drawable {
 
     /** A complete bus is still backed by individual bit connections. */
     public get busMembers(): Wire[] | undefined {
-        if (!this.bus) return undefined
         const from = this.startNode.group, to = this.endNode.group
+        const compact = !!(from?.isCompactBus || to?.isCompactBus)
+        if (!this.bus && !compact) return undefined
         if (!from?.isBusPort || !to?.isBusPort || from.nodes.length !== to.nodes.length) return undefined
         const members: Wire[] = []
         for (let i = 0; i < from.nodes.length; i++) {
             const wire = to.nodes[i].incomingWire
-            if (!wire || !wire.bus || wire.startNode !== from.nodes[i] || !wire.isAlive) return undefined
+            if (!wire || (!wire.bus && !compact) || wire.startNode !== from.nodes[i] || !wire.isAlive) return undefined
             members.push(wire)
         }
         return members
@@ -1114,14 +1115,14 @@ export class LinkManager {
         const useRibbons = this.parent.editor.options.groupParallelWires
         if (useRibbons) {
             for (const ribbon of this._ribbons) {
-                ribbon.draw(g, drawParams)
+                if (!ribbon.startNodeGroup.isCompactBus && !ribbon.endNodeGroup.isCompactBus) ribbon.draw(g, drawParams)
             }
         }
 
         // draw all wires, collecting branch points
         const branchPointsMap = new Map<NodeOut, BranchPoint[]>()
         for (const wire of this._wires) {
-            if (useRibbons && wire.ribbon !== undefined && !wire.bus) {
+            if (useRibbons && wire.ribbon !== undefined && !wire.bus && !wire.startNode.group?.isCompactBus && !wire.endNode.group?.isCompactBus) {
                 continue
             }
             wire.draw(g, drawParams)
@@ -1419,7 +1420,7 @@ export class LinkManager {
 
         const startGroup = startNode.group
         const endGroup = endNode.group
-        if (!startGroup?.isBusPort || !endGroup?.isBusPort) {
+        if (!startGroup?.isBusPort || !endGroup?.isBusPort || startGroup.isCompactBus || endGroup.isCompactBus) {
             return
         }
 

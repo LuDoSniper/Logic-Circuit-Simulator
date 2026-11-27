@@ -1,9 +1,48 @@
 import * as t from "io-ts"
-import { COLOR_COMPONENT_INNER_LABELS } from "../drawutils"
+import { COLOR_COMPONENT_BORDER, COLOR_NODE_MOUSE_OVER, COLOR_UNKNOWN, GRID_STEP } from "../drawutils"
 import { div, tooltipContent } from "../htmlgen"
 import { ArrayFillWith, LogicValue, typeOrUndefined } from "../utils"
 import { defineParametrizedComponent, group, groupVertical, param, ParametrizedComponentBase, Repr, ResolvedParams } from "./Component"
 import { DrawContext, DrawableParent, GraphicsRendering, MenuData, MenuItems } from "./Drawable"
+
+
+// Like a passthrough pin: no filled component body, only the fan-out spine.
+function drawAdapter(g: GraphicsRendering,ctx: DrawContext, x: number,y: number,bits: number,merge: boolean) {
+    const scalarSide = merge ? -1 : 1
+    const extent = 3 * GRID_STEP
+    const half = (bits - 1) * GRID_STEP
+    g.save()
+    g.lineCap = "round"
+    g.strokeStyle = ctx.isPointerOver ? COLOR_NODE_MOUSE_OVER : COLOR_UNKNOWN
+    g.lineWidth = ctx.isPointerOver ? 6 : 3
+    g.beginPath()
+    g.moveTo(x,y-half)
+    g.lineTo(x,y+half)
+    g.stroke()
+    g.strokeStyle = COLOR_COMPONENT_BORDER
+    g.lineWidth = 1.5
+    g.font = "9px sans-serif"
+    g.fillStyle = COLOR_COMPONENT_BORDER
+    g.textAlign = merge ? "left" : "right"
+    for (let i=0;i<bits;i++) {
+        const yy = y-half+i*2*GRID_STEP
+        g.beginPath()
+        g.moveTo(x,yy)
+        g.lineTo(x+scalarSide*extent,yy)
+        g.stroke()
+        g.fillText(String(i),x+scalarSide*3,yy-3)
+    }
+    g.strokeStyle = "#6485ad"
+    g.lineWidth = 5
+    g.beginPath()
+    g.moveTo(x,y)
+    g.lineTo(x-scalarSide*extent,y)
+    g.stroke()
+    g.fillStyle = COLOR_COMPONENT_BORDER
+    g.textAlign = "center"
+    g.fillText(bits + "b",x-scalarSide*extent*.55,y-6)
+    g.restore()
+}
 
 const widths = Array.from({ length: 32 }, (_,i) => i + 1)
 const width = (bits: number) => Math.max(1,Math.min(32,Math.trunc(bits) || 1))
@@ -19,10 +58,10 @@ export const BusMergerDef = defineParametrizedComponent("bus-merger", true, true
     valueDefaults: {},
     params: { bits: param(8,widths) },
     validateParams: ({bits}) => ({ bits: width(bits) }),
-    size: ({bits}) => ({ gridWidth: 8, gridHeight: Math.max(6,bits * 2) }),
+    size: ({bits}) => ({ gridWidth: 4, gridHeight: Math.max(2,bits * 2) }),
     makeNodes: ({bits}) => ({
-        ins: { Bits: individualPins("w",-5,bits) },
-        outs: { Bus: groupVertical("e",5,0,bits,0) },
+        ins: { Bits: individualPins("w",-3,bits) },
+        outs: { Bus: groupVertical("e",3,0,bits,0) },
     }),
     initialValue: (_saved,{bits}) => ArrayFillWith<LogicValue>(false,bits),
 })
@@ -34,10 +73,10 @@ export const BusSplitterDef = defineParametrizedComponent("bus-splitter", true, 
     valueDefaults: {},
     params: { bits: param(8,widths) },
     validateParams: ({bits}) => ({ bits: width(bits) }),
-    size: ({bits}) => ({ gridWidth: 8, gridHeight: Math.max(6,bits * 2) }),
+    size: ({bits}) => ({ gridWidth: 4, gridHeight: Math.max(2,bits * 2) }),
     makeNodes: ({bits}) => ({
-        ins: { Bus: groupVertical("w",-5,0,bits,0) },
-        outs: { Bits: individualPins("e",5,bits) },
+        ins: { Bus: groupVertical("w",-3,0,bits,0) },
+        outs: { Bits: individualPins("e",3,bits) },
     }),
     initialValue: (_saved,{bits}) => ArrayFillWith<LogicValue>(false,bits),
 })
@@ -58,14 +97,7 @@ export class BusMerger extends ParametrizedComponentBase<MergerRepr> {
         return tooltipContent("Bus Merger · " + this.bits + " bits",div("Regroupe les fils D0 à D" + (this.bits-1) + " dans un seul bus.",div("D0 = bit de poids faible. Aucune modification de la valeur.")))
     }
     protected override doDraw(g: GraphicsRendering,ctx: DrawContext) {
-        this.doDrawDefault(g,ctx,() => {
-            g.fillStyle = COLOR_COMPONENT_INNER_LABELS
-            g.font = "bold 12px sans-serif"
-            g.textAlign = "center"
-            g.fillText("MERGE",this.posX,this.posY-7)
-            g.font = "11px sans-serif"
-            g.fillText(this.bits + " → 1",this.posX,this.posY+10)
-        })
+        drawAdapter(g,ctx,this.posX,this.posY,this.bits,true)
     }
     protected override makeComponentSpecificContextMenuItems(): MenuItems {
         return [["mid",MenuData.item("pen","Largeur du bus (" + this.bits + " bits)",async () => {
@@ -91,14 +123,7 @@ export class BusSplitter extends ParametrizedComponentBase<SplitterRepr> {
         return tooltipContent("Bus Splitter · " + this.bits + " bits",div("Sépare le bus en fils D0 à D" + (this.bits-1) + ".",div("D0 = bit de poids faible. Aucune modification de la valeur.")))
     }
     protected override doDraw(g: GraphicsRendering,ctx: DrawContext) {
-        this.doDrawDefault(g,ctx,() => {
-            g.fillStyle = COLOR_COMPONENT_INNER_LABELS
-            g.font = "bold 12px sans-serif"
-            g.textAlign = "center"
-            g.fillText("SPLIT",this.posX,this.posY-7)
-            g.font = "11px sans-serif"
-            g.fillText("1 → " + this.bits,this.posX,this.posY+10)
-        })
+        drawAdapter(g,ctx,this.posX,this.posY,this.bits,false)
     }
     protected override makeComponentSpecificContextMenuItems(): MenuItems {
         return [["mid",MenuData.item("pen","Largeur du bus (" + this.bits + " bits)",async () => {

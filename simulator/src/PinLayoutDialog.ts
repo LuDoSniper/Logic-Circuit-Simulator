@@ -29,7 +29,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     const heading = document.createElement("h2")
     heading.textContent = root.customDef.caption
     const hint = document.createElement("p")
-    hint.textContent = "Glissez les broches sur les côtés du symbole ou entre les lignes pour les réordonner."
+    hint.textContent = "Glissez les broches pour les déplacer. Pour chaque port multibits, choisissez une broche de bus unique ou des broches individuelles."
     headingGroup.append(eyebrow, heading, hint)
     const status = document.createElement("p")
     status.className = "pin-layout-status"
@@ -215,7 +215,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
         const sameSide = entries.filter(entry => entry.side === target.side)
         const next = sameSide[target.index]
         const index = next === undefined ? entries.length : entries.findIndex(entry => entry.id === next.id)
-        entries.splice(index, 0, { id, side: target.side })
+        entries.splice(index, 0, { ...allEntries.find(entry => entry.id === id), id, side: target.side })
         draft = entries
         render()
         animateRows(before, id)
@@ -342,7 +342,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
         const pins = def.externalPins()
         status.textContent = draft === undefined ? "Automatique" : "Personnalisé"
         status.classList.toggle("is-custom", draft !== undefined)
-        allEntries = pins.map(pin => ({ id: pin.id, side: pin.orient }))
+        allEntries = pins.map(pin => ({ id: pin.id, side: pin.orient, ...(pin.bus ? { bus: true } : {}) }))
         groups.replaceChildren()
         for (const side of sides) {
             const group = document.createElement("section")
@@ -401,7 +401,19 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
                 down.title = "Later / Suivant"
                 up.disabled = i === 0
                 down.disabled = i === sidePins.length - 1
-                row.append(handle, kind, name, select, up, down)
+                row.append(handle, kind, name)
+                if (pin.numBits > 1) {
+                    const bus = button(pin.bus ? "Bus" : "Bits", () => {
+                        draft = allEntries.map(entry => entry.id === pin.id ? { ...entry, bus: !pin.bus } : entry)
+                        render()
+                    })
+                    bus.className = "pin-bus-toggle" + (pin.bus ? " active" : "")
+                    bus.title = pin.bus ? "Afficher " + pin.numBits + " broches individuelles" : "Afficher une seule broche de bus (" + pin.numBits + " bits)"
+                    bus.setAttribute("aria-label",pin.name + " : " + bus.title)
+                    bus.setAttribute("aria-pressed",String(!!pin.bus))
+                    row.append(bus)
+                }
+                row.append(select, up, down)
                 group.append(row)
             }
             groups.append(group)
@@ -440,9 +452,17 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
             const label = pin.name + (pin.numBits > 1 ? " [" + pin.numBits + "]" : "")
             const group = shape("g", { class: "pin-preview-handle", "data-preview-pin": pin.id })
             shape("title", {}, label + " — glisser pour déplacer", group)
-            shape("line", { x1: px - 12 * dx, y1: py - 12 * dy, x2: px, y2: py, stroke: color, "stroke-width": pin.numBits > 1 ? 4 : 2 }, undefined, group)
-            shape("circle", { cx: px, cy: py, r: 9, fill: color, "fill-opacity": .13, class: "pin-preview-hit" }, undefined, group)
-            shape("circle", { cx: px, cy: py, r: 4, fill: color }, undefined, group)
+            const count = pin.bus ? 1 : pin.numBits
+            // Match the simulator's individual-pin spacing, with a compact preview for large groups.
+            const spacing = pin.numBits > 8 ? 12 : 24
+            for (let i = 0; i < count; i++) {
+                const offset = (i - (count - 1) / 2) * spacing
+                const bx = px + (dy !== 0 ? offset : 0), by = py + (dx !== 0 ? offset : 0)
+                shape("line", { x1: bx - 12 * dx, y1: by - 12 * dy, x2: bx, y2: by, stroke: color, "stroke-width": pin.bus ? 4 : 2 }, undefined, group)
+                shape("circle", { cx: bx, cy: by, r: 9, fill: color, "fill-opacity": .13, class: "pin-preview-hit" }, undefined, group)
+                if (pin.bus) shape("rect", { x: bx-4, y: by-4, width: 8, height: 8, rx: 1, fill: color }, undefined, group)
+                else shape("circle", { cx: bx, cy: by, r: 3, fill: color }, undefined, group)
+            }
             group.addEventListener("pointerdown", e => startDrag(e, pin.id, label))
             const tx = px + dx * 8, ty = py + dy * 9
             const attrs: Record<string, string | number> = { x: tx, y: ty, fill: "currentColor", "font-size": 11, "dominant-baseline": "middle", "text-anchor": dx < 0 ? "end" : dx > 0 ? "start" : dy < 0 ? "start" : "end" }

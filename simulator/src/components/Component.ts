@@ -1144,7 +1144,7 @@ export abstract class ComponentBase<
     }
 
     protected drawGroupBox(g: GraphicsRendering, group: NodeGroup<Node>, bounds: DrawingRect) {
-        if (!shouldDrawNodeLabel(group.nodes)) {
+        if (group.isCompactBus || !shouldDrawNodeLabel(group.nodes)) {
             return
         }
 
@@ -1181,7 +1181,7 @@ export abstract class ComponentBase<
 
     protected drawGroupLabel(ctx: DrawContextExt, group: NodeGroup<Node>, bounds: DrawingRect): void {
         if (!isTrivialNodeName(group.name)) {
-            drawLabel(ctx, this.orient, group.name, group.orient, ...this.anchorFor(group, bounds, 1), group.nodes)
+            drawLabel(ctx, this.orient, group.isCompactBus ? group.name + " [" + group.nodes.length + "]" : group.name, group.orient, ...this.anchorFor(group, bounds, 1), group.nodes)
         }
     }
 

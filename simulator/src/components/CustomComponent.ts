@@ -26,6 +26,7 @@ type CustomComponentNodeSpec = {
     name: string,
     orient: Orientation,
     numBits: number,
+    bus?: boolean,
     sourcePos: [number, number],
     sourceRepr: Record<string, unknown>,
 }
@@ -127,7 +128,7 @@ export class CustomComponentDef {
         this.numInputs = totalIn
         this.numOutputs = totalOut
 
-        for (const pin of this.externalPins()) this.numBySide[pin.orient] += pin.numBits
+        for (const pin of this.externalPins()) this.numBySide[pin.orient] += pin.bus ? 1 : pin.numBits
         this.recalcSize()
     }
 
@@ -140,7 +141,7 @@ export class CustomComponentDef {
         for (const entry of this.pinLayout ?? []) {
             const pin = byId.get(entry.id)
             if (pin !== undefined && !assigned.has(entry.id)) {
-                ordered.push({ ...pin, orient: entry.side })
+                ordered.push({ ...pin, orient: entry.side, bus: pin.numBits > 1 && entry.bus === true })
                 assigned.add(entry.id)
             }
         }
@@ -158,8 +159,9 @@ export class CustomComponentDef {
         const counts: Record<Orientation, number> = { n: 0, e: 0, s: 0, w: 0 }
         return this.externalPins().map(pin => {
             const { orient, numBits } = pin
-            const along = -(this.numBySide[orient] - 1) + 2 * (counts[orient] + (numBits - 1) / 2)
-            counts[orient] += numBits
+            const slots = pin.bus ? 1 : numBits
+            const along = -(this.numBySide[orient] - 1) + 2 * (counts[orient] + (slots - 1) / 2)
+            counts[orient] += slots
             const x = orient === "w" ? -gridWidth / 2 - 1 : orient === "e" ? gridWidth / 2 + 1 : along
             const y = orient === "n" ? -gridHeight / 2 - 1 : orient === "s" ? gridHeight / 2 + 1 : along
             return { pin, x, y }
@@ -171,7 +173,7 @@ export class CustomComponentDef {
         const margin = 1.5
         const minSize = 1 * this._caption.length + 2
         this.gridWidth = Math.ceil(Math.max(minSize, (Math.max(this.numBySide.s, this.numBySide.n) - 1) * spacing + 2 * margin))
-        this.gridHeight = Math.ceil(Math.max(minSize, (Math.max(this.numBySide.e, this.numBySide.w) - 1) * spacing + 2 * margin))
+        this.gridHeight = Math.ceil(Math.max(this.externalPins().some(p => p.bus) ? 6 : minSize, (Math.max(this.numBySide.e, this.numBySide.w) - 1) * spacing + 2 * margin))
     }
 
     // ComponentMaker interface
@@ -242,8 +244,8 @@ export class CustomComponentDef {
         }
         g.lineWidth = 1
         const maxDrawnIO = 10
-        drawInsOuts(Math.min(maxDrawnIO, this.numInputs), 2, 10)
-        drawInsOuts(Math.min(maxDrawnIO, this.numOutputs), 40, 48)
+        drawInsOuts(Math.min(maxDrawnIO, this.externalPins().filter(p => p.isIn).reduce((n,p) => n + (p.bus ? 1 : p.numBits),0)), 2, 10)
+        drawInsOuts(Math.min(maxDrawnIO, this.externalPins().filter(p => !p.isIn).reduce((n,p) => n + (p.bus ? 1 : p.numBits),0)), 40, 48)
         g.stroke()
 
         // caption
@@ -292,8 +294,8 @@ export class CustomComponentDef {
                     const desc: NodeDesc | NodeGroupDesc<NodeDesc> = numBits === 1
                         ? [x, y, orient]
                         : Orientation.isVertical(orient)
-                            ? groupHorizontal(orient, x, y, numBits)
-                            : groupVertical(orient, x, y, numBits)
+                            ? groupHorizontal(orient, x, y, numBits, pin.bus ? 0 : undefined)
+                            : groupVertical(orient, x, y, numBits, pin.bus ? 0 : undefined)
                     ;(spec.isIn ? ins : outs)[spec.name] = desc
                 }
                 return { ins, outs }

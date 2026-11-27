@@ -822,7 +822,7 @@ svg text {
 .remaster-workspace #centerCol { min-width: 0; }
 #logicEditorRoot.remaster-workspace #leftToolbar {
   width: 176px; min-width: 176px !important; max-width: 176px !important;
-  overflow-y: auto !important; overflow-x: hidden; scrollbar-width: thin;
+  overflow-y: auto !important; overflow-x: hidden;
   padding: 0 9px 12px; border: 0; border-right: 1px solid var(--edge);
   background: var(--panel);
 }
@@ -1103,3 +1103,92 @@ svg text {
 .component-library-row > strong,.component-library-row > div { flex:1 0 100%; overflow-wrap:anywhere; }
 .component-library-row small { display:block; color:var(--muted); }
 @media(max-width:720px){ .component-library-grid { grid-template-columns:1fr; } }
+
+
+/* Shared scrollbar design tokens. All editor surfaces live in this shadow root. */
+#logicEditorRoot {
+  --scrollbar-size: 10px;
+  --scrollbar-thumb: #a9b8ca;
+  --scrollbar-thumb-hover: #7d91ac;
+  --scrollbar-thumb-active: #526e90;
+  --scrollbar-track: transparent;
+}
+#logicEditorRoot.dark {
+  --scrollbar-thumb: #52647b;
+  --scrollbar-thumb-hover: #7186a2;
+  --scrollbar-thumb-active: #93baff;
+}
+
+/* Standard styling (including Firefox). Keep scrollbars visible whenever needed. */
+#logicEditorRoot, #logicEditorRoot * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Chromium / Edge / Safari: inset rounded thumb and subtle hover feedback.
+   Reset standard properties here: Chromium otherwise ignores the pseudo-elements. */
+@supports selector(::-webkit-scrollbar) {
+  #logicEditorRoot, #logicEditorRoot * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  #logicEditorRoot::-webkit-scrollbar,
+  #logicEditorRoot *::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+  #logicEditorRoot::-webkit-scrollbar-track,
+  #logicEditorRoot *::-webkit-scrollbar-track,
+  #logicEditorRoot::-webkit-scrollbar-corner,
+  #logicEditorRoot *::-webkit-scrollbar-corner {
+    background: var(--scrollbar-track);
+  }
+  #logicEditorRoot::-webkit-scrollbar-thumb,
+  #logicEditorRoot *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+    min-height: 28px;
+    min-width: 28px;
+  }
+  #logicEditorRoot::-webkit-scrollbar-thumb:hover,
+  #logicEditorRoot *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+  #logicEditorRoot::-webkit-scrollbar-thumb:active,
+  #logicEditorRoot *::-webkit-scrollbar-thumb:active {
+    background-color: var(--scrollbar-thumb-active);
+  }
+}
+
+/* Stable gutters on major vertical scroll regions prevent layout shifts. */
+#logicEditorRoot.remaster-workspace #leftToolbar,
+#logicEditorRoot .account-dialog,
+#logicEditorRoot .component-testing-dialog,
+#logicEditorRoot .pin-layout-dialog {
+  scrollbar-gutter: stable;
+}
+#logicEditorRoot dialog,
+#logicEditorRoot .component-testing-table,
+#logicEditorRoot .custom-tooltip-truth {
+  overscroll-behavior: contain;
+}
+
+/* Preserve OS accessibility settings for high-contrast / forced-colors mode. */
+@media (forced-colors: active) {
+  #logicEditorRoot, #logicEditorRoot * {
+    scrollbar-color: auto;
+    scrollbar-width: auto;
+  }
+  #logicEditorRoot::-webkit-scrollbar-thumb,
+  #logicEditorRoot *::-webkit-scrollbar-thumb {
+    background-color: ButtonText;
+  }
+  #logicEditorRoot::-webkit-scrollbar-thumb:hover,
+  #logicEditorRoot *::-webkit-scrollbar-thumb:hover,
+  #logicEditorRoot::-webkit-scrollbar-thumb:active,
+  #logicEditorRoot *::-webkit-scrollbar-thumb:active {
+    background-color: Highlight;
+  }
+}

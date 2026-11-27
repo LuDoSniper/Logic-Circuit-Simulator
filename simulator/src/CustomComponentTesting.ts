@@ -9,6 +9,15 @@ export const ComponentTesting = t.type({
 })
 export const DevelopmentResult = t.intersection([t.type({ status: t.keyof({ pass: null, fail: null, error: null }) }), t.partial({ actual: t.record(t.string, t.string), message: t.string })])
 export type DevelopmentResult = t.TypeOf<typeof DevelopmentResult>
+
+export function summarizeDevelopmentResults(cases: readonly { id: string }[], results: Readonly<Record<string, DevelopmentResult>>) {
+    const counts = { total: cases.length, pass: 0, fail: 0, error: 0, idle: 0 }
+    for (const test of cases) {
+        const result = Object.prototype.hasOwnProperty.call(results, test.id) ? results[test.id] : undefined
+        counts[result?.status ?? "idle"]++
+    }
+    return counts
+}
 const ResultSet = t.type({ signature: t.string, cases: t.record(t.string, DevelopmentResult) })
 export const ComponentDocumentation = t.intersection([ComponentTesting, t.partial({ truth: Truth, results: ResultSet })])
 // Exchange keys are independent of the internal IDs in the receiving circuit.

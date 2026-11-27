@@ -3,8 +3,11 @@ import type { Input } from "./components/Input"
 import type { Output } from "./components/Output"
 import type { Component } from "./components/Component"
 import type { Wire } from "./components/Wire"
-import { circuitSignature, makeTruthInputs, TestGame, validBinary, type DevelopmentCase, type DevelopmentResult, type TestPort, type TruthTable } from "./CustomComponentTesting"
+import { circuitSignature, makeTruthInputs, summarizeDevelopmentResults, TestGame, validBinary, type DevelopmentCase, type DevelopmentResult, type TestPort, type TruthTable } from "./CustomComponentTesting"
 import { binaryStringRepr, type LogicValue } from "./utils"
+import { getLang } from "./strings"
+
+const tr = (fr: string, en: string) => getLang() === "fr" ? fr : en
 
 type Port<T> = TestPort & { component: T }
 const MAX_BITS = 10
@@ -47,7 +50,7 @@ function collectCombinational(root: CustomComponent): Wire[] {
             graph.get(source)?.push(target)
         }
         const visit = (comp: Component) => {
-            if (visiting.has(comp)) throw new Error("Boucle de rétroaction détectée : table combinatoire impossible.")
+            if (visiting.has(comp)) throw new Error(tr("Boucle de rétroaction détectée : table combinatoire impossible.","Feedback loop detected: combinational table unavailable."))
             if (visited.has(comp)) return
             visiting.add(comp)
             for (const next of graph.get(comp) ?? []) visit(next)
@@ -89,22 +92,22 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
         b.addEventListener("click", action)
         return b
     }
-    const close = button("Annuler", () => dialog.close())
-    const apply = button("Enregistrer", () => {
+    const close = button(tr("Annuler","Cancel"), () => dialog.close())
+    const apply = button(tr("Enregistrer","Save"), () => {
         root.draftDocumentation = structuredClone(draft)
         editor.setDirty("component tests and documentation")
         editor.editTools.undoMgr.takeSnapshot()
         editor.eventMgr.clearTooltipIfNeeded()
         dialog.close()
     }, "primary")
-    const stop = button("Arrêter", () => { cancelled = true })
+    const stop = button(tr("Arrêter","Stop"), () => { cancelled = true })
     stop.hidden = true
     footer.append(stop, close, apply)
     dialog.append(header, nav, body, notice, footer)
     host.append(dialog)
     dialog.addEventListener("cancel", e => { if (running) { e.preventDefault(); cancelled = true } })
     dialog.addEventListener("close", () => { cancelled = true; dialog.remove(); onClose() }, { once: true })
-    const tabs = [["truth", "Table de vérité"], ["custom", "Tests de développement"], ["info", "Description & survol"]] as const
+    const tabs = [["truth", tr("Table de vérité","Truth table")], ["custom", tr("Tests de développement","Development tests")], ["info", tr("Description & survol","Description & tooltip")]] as const
     for (const [id,label] of tabs) nav.append(button(label, () => { tab = id; render() }))
     function setRunning(value: boolean) {
         running = value
@@ -115,7 +118,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     }
     function report(error: unknown) { notice.textContent = error instanceof Error ? error.message : String(error) }
     function requirePorts() {
-        if (!ins.length || !outs.length) throw new Error("Ajoutez au moins une entrée non constante et une sortie.")
+        if (!ins.length || !outs.length) throw new Error(tr("Ajoutez au moins une entrée non constante et une sortie.","Add at least one non-constant input and one output."))
     }
     async function execute(action: (evaluate: (values: string[]) => string[]) => Promise<void>) {
         if (running) return
@@ -133,7 +136,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
             const evaluate = (values: string[]) => {
                 for (const [i, port] of ins.entries()) {
                     const value = values[i]
-                    if (value.length !== port.bits || !/^[01]+$/.test(value)) throw new Error("Valeur binaire incorrecte : " + port.name)
+                    if (value.length !== port.bits || !/^[01]+$/.test(value)) throw new Error(tr("Valeur binaire incorrecte : ","Invalid binary value: ") + port.name)
                     port.component.setValue([...value].reverse().map(bit => bit === "1"))
                     port.component.propagateCurrentValue()
                 }
@@ -156,24 +159,24 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     function truthView() {
         const intro = element("p", "", "Les entrées sont générées automatiquement. Le simulateur mesure chaque sortie, ligne par ligne. Ce relevé décrit le comportement observé, il ne prouve pas sa justesse.")
         body.append(intro)
-        function unavailable(reason: string, title = "Table de vérité indisponible") {
+        function unavailable(reason: string, title = tr("Table de vérité indisponible","Truth table unavailable")) {
             const panel = element("section", "truth-unavailable")
             panel.append(element("h3", "", title), element("p", "", reason),
-                button("Ouvrir les tests de développement", () => { tab = "custom"; render() }, "primary"))
+                button(tr("Ouvrir les tests de développement","Open development tests"), () => { tab = "custom"; render() }, "primary"))
             body.append(panel)
         }
         if (bits > MAX_BITS) {
-            const rows = bits <= 52 ? (2 ** bits).toLocaleString("fr-FR") : "2^" + bits
-            unavailable("Ce composant possède " + bits + " bits d’entrée, soit " + rows + " combinaisons. La limite du simulateur est de " + MAX_BITS + " bits (1 024 lignes). Une table exhaustive est théoriquement possible pour un circuit combinatoire, mais elle ne peut pas être générée ici.", "Table exhaustive trop volumineuse")
+            const rows = bits <= 52 ? (2 ** bits).toLocaleString(getLang() === "fr" ? "fr-FR" : "en-US") : "2^" + bits
+            unavailable("Ce composant possède " + bits + " bits d’entrée, soit " + rows + " combinaisons. La limite du simulateur est de " + MAX_BITS + " bits (1 024 lignes). Une table exhaustive est théoriquement possible pour un circuit combinatoire, mais elle ne peut pas être générée ici.", tr("Table exhaustive trop volumineuse","Exhaustive table too large"))
             return
         }
         if (!ins.length || !outs.length) {
-            unavailable("Il faut au moins une entrée non constante et une sortie.")
+            unavailable(tr("Il faut au moins une entrée non constante et une sortie.","At least one non-constant input and one output are required."))
             return
         }
         let currentSignature: string
         try { collectCombinational(root); currentSignature = signature() }
-        catch (error) { unavailable(error instanceof Error ? error.message : String(error), "Table de vérité impossible en l’état"); return }
+        catch (error) { unavailable(error instanceof Error ? error.message : String(error), tr("Table de vérité impossible en l’état","Truth table unavailable for this circuit")); return }
         const count = 2 ** bits
         const progress = element("progress")
         progress.max = count
@@ -204,7 +207,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
         }
         progress.value = saved ? count : 0
         progressText.textContent = progress.value + " / " + count
-        const run = button("▶ Générer la table", () => {
+        const run = button(tr("▶ Générer la table","▶ Generate table"), () => {
             void execute(async evaluate => {
                 run.disabled = true
                 progress.value = 0
@@ -214,7 +217,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                 try {
                     const testedSignature = signature()
                     for (let i=0;i<count;i++) {
-                        if (cancelled) { notice.textContent = "Calcul interrompu. La dernière table complète est conservée."; return }
+                        if (cancelled) { notice.textContent = tr("Calcul interrompu. La dernière table complète est conservée.","Generation stopped. The last complete table is kept."); return }
                         const actual = evaluate(inputRows[i])
                         rows.push([...inputRows[i],...actual])
                         actual.forEach((value,j) => { cells[i][j].textContent = value })
@@ -224,20 +227,20 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                     }
                     const truth: TruthTable = { signature: testedSignature, inputs: plain(ins), outputs: plain(outs), rows }
                     draft.truth = truth
-                    notice.textContent = "Table complète. Enregistrez pour la publier selon vos réglages de survol."
+                    notice.textContent = tr("Table complète. Enregistrez pour la publier selon vos réglages de survol.","Table complete. Save to publish it according to tooltip settings.")
                 } finally { run.disabled = false }
             })
         }, "primary")
         toolbar.append(run, progress, progressText)
-        if (draft.truth && !saved) toolbar.append(element("span", "test-warning", "Table obsolète : régénérez-la."))
+        if (draft.truth && !saved) toolbar.append(element("span", "test-warning", tr("Table obsolète : régénérez-la.","Outdated table: regenerate it.")))
         wrap.append(table)
         body.append(toolbar,wrap)
     }
     function customView() {
-        body.append(element("p", "", "Définissez les entrées et les sorties attendues. Ces cas restent privés à l’édition du composant et ne sont jamais affichés au survol."))
+        body.append(element("p", "", tr("Définissez les entrées et les sorties attendues. Ces cas restent privés à l’édition du composant et ne sont jamais affichés au survol.","Define inputs and expected outputs. These cases are only visible in the component editor, not in tooltips.")))
         const result: Record<string, DevelopmentResult> = Object.assign(Object.create(null), currentResults())
         const toolbar = element("div", "component-testing-toolbar")
-        const runAll = button("▶ Exécuter les tests", () => {
+        const runAll = button(tr("▶ Exécuter les tests","▶ Run tests"), () => {
             void execute(async evaluate => {
                 const testedSignature = signature()
                 runAll.disabled = add.disabled = importButton.disabled = exportButton.disabled = true
@@ -250,16 +253,17 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                         try {
                             const actual = evaluate(ins.map(p => test.inputs[p.id] ?? ""))
                             const expected = outs.map(p => test.expected[p.id] ?? "")
-                            if (!outs.every((p,i) => validBinary(expected[i],p.bits))) throw new Error("Sortie attendue invalide.")
+                            if (!outs.every((p,i) => validBinary(expected[i],p.bits))) throw new Error(tr("Sortie attendue invalide.","Invalid expected output."))
                             result[test.id] = { status: expected.every((value,i) => value === actual[i]) ? "pass" : "fail", actual: Object.fromEntries(outs.map((p,i) => [p.id,actual[i]])) }
                         } catch (error) { result[test.id] = { status: "error", message: error instanceof Error ? error.message : String(error) } }
                         updateResults()
                         await pause()
                     }
+                    if (cancelled) notice.textContent = tr("Exécution interrompue. Les résultats obtenus sont conservés.","Run stopped. Completed results are kept.")
                 } finally { runAll.disabled = add.disabled = importButton.disabled = exportButton.disabled = false }
             })
         }, "primary")
-        const add = button("+ Ajouter un test", () => {
+        const add = button(tr("+ Ajouter un test","+ Add test"), () => {
             const test: DevelopmentCase = {
                 id: newId(), name: "Test " + (draft.cases.length+1),
                 inputs: Object.fromEntries(ins.map(p => [p.id,"0".repeat(p.bits)])),
@@ -268,7 +272,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
             draft.cases.push(test)
             render()
         })
-        const importButton = button("Importer JSON", () => {
+        const importButton = button(tr("Importer JSON","Import JSON"), () => {
             const picker = element("input")
             picker.type = "file"
             picker.accept = ".json,application/json"
@@ -277,11 +281,11 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                 if (!file) return
                 void (async () => {
                     try {
-                        if (file.size > 8 * 1024 * 1024) throw new Error("Fichier trop volumineux.")
+                        if (file.size > 8 * 1024 * 1024) throw new Error(tr("Fichier trop volumineux.","File too large."))
                         const decoded = TestGame.decode(JSON.parse(await file.text()))
-                        if (decoded._tag !== "Right") throw new Error("Format de jeu de tests invalide (logic-remaster-tests v1).")
+                        if (decoded._tag !== "Right") throw new Error(tr("Format de jeu de tests invalide (logic-remaster-tests v1).","Invalid test file format (logic-remaster-tests v1)."))
                         const game = decoded.right
-                        if (game.cases.length > 1000 || draft.cases.length + game.cases.length > 1000) throw new Error("Limite : 1 000 cas par composant.")
+                        if (game.cases.length > 1000 || draft.cases.length + game.cases.length > 1000) throw new Error(tr("Limite : 1 000 cas par composant.","Limit: 1,000 cases per component."))
                         function checkPorts(source: TestPort[], target: TestPort[], kind: string) {
                             const describe = (ps: TestPort[]) => ps.map(p => p.name + " (" + p.bits + " bit" + (p.bits === 1 ? "" : "s") + ")").join(", ")
                             const incompatible = (reason: string) => new Error("Jeu de tests incompatible — " + kind + " : " + reason + ". Fichier : " + describe(source) + ". Composant : " + describe(target) + ".")
@@ -314,7 +318,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                                 if (!available.length) throw new Error("Aucune broche compatible pour " + p.name)
                                 const choices = available.map(t => t.name).join(", ")
                                 const name = await editor.appPrompt("Le fichier utilise " + kind + " « " + p.name + " » (" + p.bits + " bits), introuvable sous ce nom. Saisissez le nom de la broche correspondante : " + choices, "")
-                                if (name === null) throw new Error("Import annulé.")
+                                if (name === null) throw new Error(tr("Import annulé.","Import cancelled."))
                                 const matches = available.filter(t => t.name.toLowerCase() === name.trim().toLowerCase())
                                 if (matches.length !== 1) throw new Error("Association impossible ou ambiguë pour " + p.name)
                                 mapping.set(p.id,matches[0].id)
@@ -325,7 +329,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                         const im = await mapPorts(game.inputs,ins,"l’entrée")
                         const om = await mapPorts(game.outputs,outs,"la sortie")
                         function mapValues(values: Record<string,string>, ports: TestPort[], mapping: Map<string,string>) {
-                            if (Object.keys(values).length !== ports.length) throw new Error("Colonnes manquantes ou supplémentaires dans un test.")
+                            if (Object.keys(values).length !== ports.length) throw new Error(tr("Colonnes manquantes ou supplémentaires dans un test.","Missing or extra columns in a test."))
                             return Object.fromEntries(ports.map(p => {
                                 const value = values[p.id]
                                 if (!validBinary(value,p.bits)) throw new Error("Valeur binaire invalide pour " + p.name)
@@ -336,13 +340,13 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
                         if (!dialog.isConnected || running) return
                         draft.cases.push(...cases)
                         render()
-                        notice.textContent = cases.length + " test(s) importé(s), sans résultats. Lancez leur exécution."
+                        notice.textContent = cases.length + tr(" test(s) importé(s), sans résultats. Lancez leur exécution."," test(s) imported without results. Run them to obtain results.")
                     } catch (error) { report(error) }
                 })()
             }, { once: true })
             picker.click()
         })
-        const exportButton = button("Exporter JSON", () => {
+        const exportButton = button(tr("Exporter JSON","Export JSON"), () => {
             const results = currentResults()
             const game: TestGame = { format: "logic-remaster-tests", version: 1, component: root.customDef.caption,
                 inputs: plain(ins), outputs: plain(outs), cases: structuredClone(draft.cases),
@@ -356,28 +360,98 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
         })
         toolbar.append(add,runAll,importButton,exportButton)
         body.append(toolbar)
-        const list = element("div","component-test-cases")
+        const summary = element("section","component-test-summary")
+        summary.setAttribute("aria-label",tr("Bilan des tests","Test summary"))
+        const heading = element("div","component-test-summary-heading")
+        heading.append(element("strong","",tr("Bilan des tests","Test summary")))
+        const progressText = element("span","component-test-progress-text")
+        progressText.setAttribute("role","status")
+        heading.append(progressText)
+        const counters = element("div","component-test-counts")
+        const labels = {
+            total: tr("Total","Total"), pass: tr("Réussis","Passed"), fail: tr("Échecs","Failed"),
+            error: tr("Erreurs","Errors"), idle: tr("Non exécutés","Not run"),
+        }
+        const countNodes = new Map<keyof typeof labels, HTMLElement>()
+        for (const key of ["total","pass","fail","error","idle"] as const) {
+            const metric = element("div","component-test-metric")
+            metric.dataset.status = key
+            const count = element("strong","","0")
+            countNodes.set(key,count)
+            metric.append(count,element("span","",labels[key]))
+            counters.append(metric)
+        }
+        const progress = element("div","component-test-progress")
+        progress.setAttribute("role","progressbar")
+        progress.setAttribute("aria-label",tr("Avancement des tests","Test progress"))
+        const segments = new Map<string,HTMLElement>()
+        for (const status of ["pass","fail","error","idle"]) {
+            const segment = element("span")
+            segment.dataset.status = status
+            segments.set(status,segment)
+            progress.append(segment)
+        }
+        const filterRow = element("label","component-test-filter")
+        filterRow.append(element("span","",tr("Afficher","Show")))
+        const filter = element("select")
+        const options = [
+            ["all",tr("Tous les tests","All tests")],
+            ["problems",tr("Échecs et erreurs","Failures and errors")],
+            ["pass",labels.pass],["fail",labels.fail],["error",labels.error],["idle",labels.idle],
+        ] as const
+        for (const [value,label] of options) {
+            const option = element("option","",label)
+            option.value = value
+            filter.append(option)
+        }
+        filterRow.append(filter)
+        summary.append(heading,counters,progress,filterRow)
+        body.append(summary)
+        const list = element("div","component-test-cases component-test-scroll")
+        const emptyFilter = element("p","component-test-filter-empty",tr("Aucun test ne correspond à ce filtre.","No tests match this filter."))
         const resultElements = new Map<string,HTMLElement>()
+        const cards = new Map<string,HTMLElement>()
+        filter.addEventListener("change",updateResults)
         function updateResults() {
+            const counts = summarizeDevelopmentResults(draft.cases,result)
+            for (const [key,node] of countNodes) node.textContent = String(counts[key])
+            const executed = counts.total - counts.idle
+            progressText.textContent = executed + " / " + counts.total + tr(" exécutés"," run")
+            progress.setAttribute("aria-valuemin","0")
+            progress.setAttribute("aria-valuemax",String(Math.max(1,counts.total)))
+            progress.setAttribute("aria-valuenow",String(executed))
+            for (const key of ["pass","fail","error","idle"] as const) {
+                const segment = segments.get(key)!
+                segment.style.flexGrow = String(counts[key])
+                segment.hidden = counts[key] === 0
+            }
+            let visible = 0
             for (const [id,node] of resultElements) {
                 const r = result[id]
-                node.textContent = !r ? "Non exécuté" : r.status === "pass" ? "Réussi" : r.status === "fail" ? "Échec · obtenu " + outs.map(p => r.actual?.[p.id] ?? "—").join(" / ") : r.message ?? "Erreur"
-                node.dataset.result = r?.status === "pass" ? "pass" : r ? "fail" : "idle"
+                const status = r?.status ?? "idle"
+                const show = filter.value === "all" || filter.value === status || (filter.value === "problems" && (status === "fail" || status === "error"))
+                const card = cards.get(id)
+                if (card) card.hidden = !show
+                if (show) visible++
+                node.textContent = !r ? tr("Non exécuté","Not run") : r.status === "pass" ? tr("Réussi","Passed") : r.status === "fail" ? tr("Échec · obtenu ","Failed · actual ") + outs.map(p => r.actual?.[p.id] ?? "—").join(" / ") : tr("Erreur","Error") + (r.message ? " · " + r.message : "")
+                node.dataset.result = status
             }
+            emptyFilter.hidden = visible > 0 || draft.cases.length === 0
         }
         for (const test of draft.cases) {
             const card = element("section","component-test-case")
+            cards.set(test.id,card)
             const head = element("div","component-testing-toolbar")
             const name = element("input")
             name.value = test.name
-            name.setAttribute("aria-label","Nom du test")
+            name.setAttribute("aria-label",tr("Nom du test","Test name"))
             name.addEventListener("input", () => { test.name = name.value })
             const state = element("span","component-test-result")
             resultElements.set(test.id,state)
-            const remove = button("Supprimer", () => { if (running) return; draft.cases = draft.cases.filter(c => c.id !== test.id); if (draft.results) delete draft.results.cases[test.id]; render() })
+            const remove = button(tr("Supprimer","Delete"), () => { if (running) return; draft.cases = draft.cases.filter(c => c.id !== test.id); if (draft.results) delete draft.results.cases[test.id]; render() })
             head.append(name,state,remove)
             const fields = element("div","component-test-fields")
-            for (const [title,ps,record] of [["Entrées",ins,test.inputs],["Sorties attendues",outs,test.expected]] as const) {
+            for (const [title,ps,record] of [[tr("Entrées","Inputs"),ins,test.inputs],[tr("Sorties attendues","Expected outputs"),outs,test.expected]] as const) {
                 const group = element("div")
                 group.append(element("h3","",title))
                 for (const p of ps) {
@@ -396,7 +470,8 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
             card.append(head,fields)
             list.append(card)
         }
-        if (!draft.cases.length) list.append(element("p","","Aucun test de développement. Ajoutez votre premier cas."))
+        if (!draft.cases.length) list.append(element("p","",tr("Aucun test de développement. Ajoutez votre premier cas.","No development tests. Add your first case.")))
+        list.append(emptyFilter)
         body.append(list)
         updateResults()
         // Keep editing controls inert while a run is active, without hiding progress.
@@ -409,13 +484,13 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     function infoView() {
         const description = element("textarea")
         description.rows = 6
-        description.placeholder = "Décrivez le rôle du composant, ses entrées et ses sorties…"
+        description.placeholder = tr("Décrivez le rôle du composant, ses entrées et ses sorties…","Describe the component, its inputs and outputs…")
         description.value = draft.description
         description.addEventListener("input", () => { draft.description = description.value })
         const label = element("label","component-test-description")
-        label.append(element("span","","Description personnalisée"),description)
+        label.append(element("span","",tr("Description personnalisée","Custom description")),description)
         body.append(label)
-        for (const [key,text] of [["showDescription","Afficher la description au survol"],["showTruth","Afficher la table de vérité au survol"]] as const) {
+        for (const [key,text] of [["showDescription",tr("Afficher la description au survol","Show description on hover")],["showTruth",tr("Afficher la table de vérité au survol","Show truth table on hover")]] as const) {
             const row = element("label","component-test-toggle")
             const input = element("input")
             input.type = "checkbox"

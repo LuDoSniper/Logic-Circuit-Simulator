@@ -4,7 +4,7 @@ import { UndoState } from "./UndoManager"
 import { CustomComponentDef } from "./components/CustomComponent"
 import { Modifier, a, attr, button, cls, div, emptyMod, icon, input, mods, span, style, title, type } from "./htmlgen"
 import { IconName } from "./images"
-import { S } from "./strings"
+import { S, getLang } from "./strings"
 import { Mode, UIDisplay, setActive, setDisplay, setEnabled, setVisible } from "./utils"
 
 export class TopBar {
@@ -76,7 +76,7 @@ export class TopBar {
         const componentTests = document.createElement("button")
         componentTests.type = "button"
         componentTests.className = "pin-appearance-button"
-        componentTests.textContent = "Tests & info"
+        componentTests.textContent = getLang() === "fr" ? "Tests & infos" : "Tests & info"
         componentTests.title = "Tests, table de vérité et description"
         componentTests.addEventListener("click", () => editor.editCustomComponentTests())
         this.customComponentTab = this.makeTab(

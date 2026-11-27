@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { makeTruthInputs, circuitSignature, ComponentDocumentation, defaultDocumentation, TestGame, validBinary } from "../simulator/src/CustomComponentTesting.ts"
+import { makeTruthInputs, circuitSignature, ComponentDocumentation, defaultDocumentation, TestGame, validBinary, summarizeDevelopmentResults } from "../simulator/src/CustomComponentTesting.ts"
 
 test("truth table enumerates grouped inputs in binary order", () => {
     const ports = [{ id: "A", name: "A", bits: 2 }, { id: "B", name: "B", bits: 1 }]
@@ -57,4 +57,13 @@ test("external pins preserve legacy layouts and optional compact bus presentatio
     assert.equal(decoded._tag,"Right")
     assert.deepEqual(decoded.right,layout)
     assert.equal(ExternalPinLayout.decode([{id:"A",side:"w",bus:"yes"}])._tag,"Left")
+})
+
+test("development summary counts only current cases and handles pending, errors and empty suites", () => {
+    const cases = ["a","b","c","d","e"].map(id => ({id}))
+    const results = { a:{status:"pass"}, b:{status:"pass"}, c:{status:"fail"}, d:{status:"error"}, removed:{status:"fail"} }
+    assert.deepEqual(summarizeDevelopmentResults(cases,results),{total:5,pass:2,fail:1,error:1,idle:1})
+    delete results.c
+    assert.deepEqual(summarizeDevelopmentResults(cases,results),{total:5,pass:2,fail:0,error:1,idle:2})
+    assert.deepEqual(summarizeDevelopmentResults([],results),{total:0,pass:0,fail:0,error:0,idle:0})
 })

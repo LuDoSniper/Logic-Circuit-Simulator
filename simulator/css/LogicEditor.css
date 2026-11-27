@@ -1215,3 +1215,31 @@ svg text {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+
+/* Development-test overview stays above its independently scrolling case list. */
+.component-test-summary { display:grid; gap:9px; padding:12px; border:1px solid var(--edge); border-radius:10px; background:var(--chrome); }
+.component-test-summary-heading { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; }
+.component-test-progress-text { color:var(--muted); font-variant-numeric:tabular-nums; }
+.component-test-counts { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; }
+.component-test-metric { display:flex; flex-direction:column; gap:2px; padding:8px 10px; background:var(--panel); border:1px solid var(--edge); border-radius:7px; min-width:0; }
+.component-test-metric strong { font-size:22px; font-variant-numeric:tabular-nums; line-height:1.1; }
+.component-test-metric span { color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+.component-test-summary { --test-pass:#198568; --test-fail:#b91c1c; --test-error:#b45309; --test-idle:#94a3b8; }
+.dark .component-test-summary { --test-pass:#54d4a7; --test-fail:#fca5a5; --test-error:#fbbf24; --test-idle:#64748b; }
+.component-test-metric[data-status=pass] strong { color:var(--test-pass); }
+.component-test-metric[data-status=fail] strong { color:var(--test-fail); }
+.component-test-metric[data-status=error] strong { color:var(--test-error); }
+.component-test-progress { height:6px; display:flex; overflow:hidden; border-radius:999px; background:var(--edge); }
+.component-test-progress span { flex-basis:0; }
+.component-test-progress [data-status=pass] { background:var(--test-pass); }
+.component-test-progress [data-status=fail] { background:var(--test-fail); }
+.component-test-progress [data-status=error] { background:var(--test-error); }
+.component-test-progress [data-status=idle] { background:var(--test-idle); }
+.component-test-filter { display:flex; gap:8px; align-items:center; justify-content:flex-end; }
+.component-test-filter select { background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:6px; padding:5px 8px; font:inherit; }
+.component-test-scroll { max-height:38vh; overflow:auto; overscroll-behavior:contain; padding-right:4px; align-content:start; }
+.component-test-scroll [hidden], .component-test-progress [hidden] { display:none !important; }
+.component-test-result[data-result=error] { color:#b45309; }
+.dark .component-test-result[data-result=error] { color:#fbbf24; }
+.dark .component-test-result[data-result=pass] { color:#54d4a7; }
+@media(max-width:600px) { .component-test-counts { grid-template-columns:repeat(3,minmax(0,1fr)); } }

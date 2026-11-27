@@ -135,6 +135,18 @@ export class NodeGroup<TNode extends Node> {
         return this._nodes
     }
 
+    /** The breakout side is deliberately scalar even though the bits are stored in a group. */
+    public get isBusPort(): boolean {
+        return this._nodes.length > 1 && !(this.name === "Bits" &&
+            (this.parent.def.type === "bus-merger" || this.parent.def.type === "bus-splitter"))
+    }
+
+    /** A compact bus terminal exposes all its lanes at a single connection point. */
+    public get isCompactBus(): boolean {
+        return this.isBusPort && this._nodes.every(n =>
+            n.gridOffsetX === this._nodes[0].gridOffsetX && n.gridOffsetY === this._nodes[0].gridOffsetY)
+    }
+
     public addNode(node: TNode) {
         if (this._avgGridOffets !== undefined) {
             console.warn("Adding nodes to a group after the group's position has been used")
@@ -1110,6 +1122,19 @@ export abstract class ComponentBase<
     }
 
     protected drawWireLineTo(g: GraphicsRendering, node: Node, bounds: DrawingRect) {
+        if (node.group?.isCompactBus) {
+            if (node.group.nodes[0] !== node) return
+            const [x1,y1,x2,y2] = node.drawCoordsInParentTransform
+            g.save()
+            g.beginPath()
+            g.moveTo(x1,y1)
+            g.lineTo(x2,y2)
+            g.strokeStyle = "#6485ad"
+            g.lineWidth = 5
+            g.stroke()
+            g.restore()
+            return
+        }
         if (node.isClock) {
             drawClockInput(g, bounds.left, node, (this as any)["_trigger"] ?? EdgeTrigger.rising)
             return

@@ -175,6 +175,7 @@ export abstract class NodeBase<N extends Node> extends DrawableWithPosition {
     }
 
     public distSquaredIfOver(x: number, y: number, moreTolerant: boolean): number | undefined {
+        if (this.group?.isCompactBus && this.group.nodes[0] !== this.asNode) return undefined
         if (!(this.parent.mode >= Mode.CONNECT && this.acceptsMoreConnections)) {
             return undefined
         }
@@ -195,6 +196,14 @@ export abstract class NodeBase<N extends Node> extends DrawableWithPosition {
 
     protected doDraw(g: GraphicsRendering, ctx: DrawContext) {
         const mode = this.parent.mode
+        if (this.group?.isCompactBus) {
+            if (this.group.nodes[0] !== this.asNode || mode < Mode.CONNECT) return
+            g.save()
+            g.fillStyle = ctx.isPointerOver ? ctx.borderColor : "#6485ad"
+            g.fillRect(this.posX-4,this.posY-4,8,8)
+            g.restore()
+            return
+        }
         if ((mode < Mode.CONNECT && !this.forceDraw()) || !this.acceptsMoreConnections) {
             return
         }

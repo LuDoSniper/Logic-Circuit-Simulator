@@ -64,3 +64,5 @@ The Library toolbar button exports selected components with their transitive cus
 ### Multi-bit buses
 
 Drag between two multi-bit pin groups of equal width to connect corresponding bits as a single visual bus. Hold Shift for the original single-bit wiring. Existing scalar wires are unchanged. A bus uses normal per-bit wire records with an optional `bus` flag, so simulation and export retain each lane. Right-click a bus to split it back into individual wires. The Bus n → m converter (Layout) supports 1–32 bits, bit offset, zero extension and sign extension.
+
+Bus Merger and Bus Splitter (Layout, 1–32 bits) expose a single compact bus terminal and individually accessible D0…Dn−1 pins. D0 is the least-significant bit. Compact terminals require matching-width bus connections; use a splitter to access individual bits. The width converter remains available separately.

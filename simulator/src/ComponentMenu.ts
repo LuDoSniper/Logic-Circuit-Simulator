@@ -8,6 +8,7 @@ import { AdderDef } from "./components/Adder"
 import { AdderArrayDef } from "./components/AdderArray"
 import { BypassDef } from "./components/Bypass"
 import { BusConverterDef } from "./components/BusConverter"
+import { BusMergerDef, BusSplitterDef } from "./components/BusAdapter"
 import { ClockDef } from "./components/Clock"
 import { ComparatorDef } from "./components/Comparator"
 import { ParamDef, ParametrizedComponentDef, ParamsFromDefs } from "./components/Component"
@@ -159,6 +160,8 @@ const componentsMenu: Array<Section> = [{
 
         PassthroughDef.button({ bits: 1 }, "Passthrough1"),
         PassthroughDef.button({ bits: 4 }, "PassthroughN"),
+        BusMergerDef.button({ bits: 8 }, "PassthroughN"),
+        BusSplitterDef.button({ bits: 8 }, "PassthroughN"),
         BusConverterDef.button({ from: 8, to: 4, offset: 0, signed: false }, "PassthroughN"),
     ],
 }, {
@@ -425,7 +428,7 @@ function makeButtons(section: Section, showOnlyBuf: string[] | undefined) {
         const normallyHidden = item.visible !== undefined && item.visible !== "always"
         const [stringsKey, img] = isString(item.visual) ? [item.visual, item.visual] : item.visual
         const compStrings = S.ComponentBar.Components.props[stringsKey]
-        const [titleStr, captionStr] = item.type === "bus-converter" ? ["Convertisseur de largeur de bus", "Bus n → m"] : isString(compStrings) ? [compStrings, undefined] : compStrings
+        const [titleStr, captionStr] = item.type === "bus-merger" ? ["Regrouper des fils individuels en un bus", "Bus Merger"] : item.type === "bus-splitter" ? ["Séparer un bus en fils individuels", "Bus Splitter"] : item.type === "bus-converter" ? ["Convertisseur de largeur de bus", "Bus n → m"] : isString(compStrings) ? [compStrings, undefined] : compStrings
         const { compButton, hiddenByShowOnly, hiddenNow } = makeButton(
             item.type, normallyHidden, componentIdsFor(item), showOnlyBuf,
             makeImage(img, item.width), captionStr, titleStr, item.params?.params, false

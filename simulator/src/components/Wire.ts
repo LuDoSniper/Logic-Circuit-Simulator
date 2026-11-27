@@ -208,7 +208,7 @@ export class Wire extends Drawable {
     public get busMembers(): Wire[] | undefined {
         if (!this.bus) return undefined
         const from = this.startNode.group, to = this.endNode.group
-        if (!from || !to || from.nodes.length < 2 || from.nodes.length !== to.nodes.length) return undefined
+        if (!from?.isBusPort || !to?.isBusPort || from.nodes.length !== to.nodes.length) return undefined
         const members: Wire[] = []
         for (let i = 0; i < from.nodes.length; i++) {
             const wire = to.nodes[i].incomingWire
@@ -780,10 +780,10 @@ export class Wire extends Drawable {
                 for (const wire of bus) wire.customPropagationDelay = delay
                 this.requestRedraw({ why: "bus delay changed" })
             }),
-            MenuData.item("connect", "Séparer en fils individuels", () => {
+            ...((this.startNode.group?.isCompactBus || this.endNode.group?.isCompactBus) ? [] : [MenuData.item("connect", "Séparer en fils individuels", () => {
                 for (const wire of bus) { wire.bus = false; wire.invalidateWirePath() }
                 this.requestRedraw({ why: "bus split", invalidateMask: true })
-            }),
+            })]),
             MenuData.sep(),
             MenuData.item("trash", "Supprimer le bus (" + bus.length + " bits)", () => this.parent.linkMgr.deleteWire(this), { color: "danger" }),
         ]
@@ -1173,7 +1173,7 @@ export class LinkManager {
                 const [a2x, a2y] = bezierAnchorForWire(outgoingOrient, x2, y2, bezierAnchorPointDistX, bezierAnchorPointDistY)
                 g.bezierCurveTo(a1x, a1y, a2x, a2y, x2, y2)
             }
-            if (!this._singleBitDrag && (nodeFrom.group?.nodes.length ?? 0) > 1) {
+            if (!this._singleBitDrag && nodeFrom.group?.isBusPort) {
                 g.strokeStyle = "#6485ad"
                 g.lineWidth = 6
                 g.stroke()
@@ -1280,14 +1280,14 @@ export class LinkManager {
             return
         }
         this._wireBeingAddedFrom = node
-        this._singleBitDrag = singleBit
+        this._singleBitDrag = singleBit && !node.group?.isCompactBus
         this.parent.ifEditing?.setToolCursor("crosshair")
     }
 
     public stopDraggingWireOn(newNode: Node, singleBit = false): Wire | undefined {
         const from = this._wireBeingAddedFrom
         const nodes = this.getOutInNodesForNewWire(newNode)
-        const useSingle = singleBit || this._singleBitDrag
+        const useSingle = (singleBit || this._singleBitDrag) && !from?.group?.isCompactBus && !newNode.group?.isCompactBus
         this._wireBeingAddedFrom = undefined
         this._singleBitDrag = false
         if (!nodes) return undefined
@@ -1295,7 +1295,7 @@ export class LinkManager {
         const source = out.group, target = input.group
         // A normal drag between two multi-bit terminals connects bit i to bit i.
         // Shift retains the original individual-wire gesture.
-        if (!useSingle && from && from.isOutput() !== newNode.isOutput() && source && target && source.nodes.length > 1 && target.nodes.length > 1) {
+        if (!useSingle && from && from.isOutput() !== newNode.isOutput() && source?.isBusPort && target?.isBusPort) {
             if (source.nodes.length !== target.nodes.length) {
                 this.parent.editor.showMessage("Bus incompatibles : " + source.nodes.length + " → " + target.nodes.length + " bits. Utilisez un convertisseur ou Maj pour un seul bit.")
                 return undefined
@@ -1315,6 +1315,10 @@ export class LinkManager {
             }
             this.parent.editor.showMessage("Bus " + created.length + " bits connecté")
             return created[0]
+        }
+        if (source?.isCompactBus || target?.isCompactBus) {
+            this.parent.editor.showMessage("Une broche de bus attend un groupe de même largeur. Utilisez un Bus Merger ou Bus Splitter pour les fils individuels.")
+            return undefined
         }
         return this.addWire(out, input, true)
     }
@@ -1415,7 +1419,7 @@ export class LinkManager {
 
         const startGroup = startNode.group
         const endGroup = endNode.group
-        if (startGroup === undefined || endGroup === undefined) {
+        if (!startGroup?.isBusPort || !endGroup?.isBusPort) {
             return
         }
 

@@ -2,6 +2,7 @@ import type { CustomComponent, CustomComponentDef } from "./components/CustomCom
 import type { ExternalPinLayout } from "./ExternalPinLayout"
 import { Serialization } from "./Serialization"
 import type { Orientation } from "./utils"
+import { useCompact } from "./drawutils"
 
 const sides: Orientation[] = ["w", "n", "e", "s"]
 const sideLabels: Record<Orientation, string> = { w: "Left / Gauche", n: "Top / Haut", e: "Right / Droite", s: "Bottom / Bas" }
@@ -454,7 +455,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
             shape("title", {}, label + " — glisser pour déplacer", group)
             const count = pin.bus ? 1 : pin.numBits
             // Match the simulator's individual-pin spacing, with a compact preview for large groups.
-            const spacing = pin.numBits > 8 ? 12 : 24
+            const spacing = useCompact(pin.numBits) ? 12 : 24
             for (let i = 0; i < count; i++) {
                 const offset = (i - (count - 1) / 2) * spacing
                 const bx = px + (dy !== 0 ? offset : 0), by = py + (dx !== 0 ? offset : 0)

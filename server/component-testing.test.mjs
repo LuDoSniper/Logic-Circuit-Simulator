@@ -49,3 +49,12 @@ test("bus converter preserves LSB order, slices and extends", () => {
     assert.deepEqual(resizeBus([1,1],4,0,true,0),[1,1,1,1])
     assert.deepEqual(resizeBus([1,0],4,0,true,0),[1,0,0,0])
 })
+
+import { ExternalPinLayout } from "../simulator/src/ExternalPinLayout.ts"
+test("external pins preserve legacy layouts and optional compact bus presentation", () => {
+    const layout = [{id:"A",side:"w",bus:true},{id:"B",side:"w"},{id:"S",side:"e",bus:false}]
+    const decoded = ExternalPinLayout.decode(layout)
+    assert.equal(decoded._tag,"Right")
+    assert.deepEqual(decoded.right,layout)
+    assert.equal(ExternalPinLayout.decode([{id:"A",side:"w",bus:"yes"}])._tag,"Left")
+})

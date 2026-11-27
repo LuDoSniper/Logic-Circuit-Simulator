@@ -2,12 +2,8 @@ import * as t from "io-ts"
 import JSON5 from "json5"
 import { LogicEditor } from "./LogicEditor"
 import { Serialization, PostLoadActions_None, type Library } from "./Serialization"
-import { ComponentList } from "./ComponentList"
-import { NodeManager } from "./NodeManager"
-import { RecalcManager } from "./RedrawRecalcManager"
-import { LinkManager } from "./components/Wire"
 import { CurrentFormatVersion } from "./DataMigration"
-import { TestCaseCombinational, TestCaseCombinationalRepr, TestSuites } from "./TestSuite"
+import { TestCaseCombinational, TestCaseCombinationalRepr } from "./TestSuite"
 import { ALU, ALUDef } from "./components/ALU"
 import { Add3IfGeq5, Add3IfGeq5Def } from "./components/Add3IfGeq5"
 import { Adder, AdderDef } from "./components/Adder"
@@ -61,6 +57,11 @@ import { TristateBuffer, TristateBufferDef } from "./components/TristateBuffer"
 import { TristateBufferArray, TristateBufferArrayDef } from "./components/TristateBufferArray"
 import { S } from "./strings"
 import { ParentType, binaryStringRepr, isArray, isRecord, isString, validateJson, valuesReprForTest } from "./utils"
+import { ComponentList } from "./ComponentList"
+import { NodeManager } from "./NodeManager"
+import { RecalcManager } from "./RedrawRecalcManager"
+import { LinkManager } from "./components/Wire"
+import { TestSuites } from "./TestSuite"
 
 
 export type ComponentForDef<TDef> = Component & (
@@ -241,6 +242,11 @@ export class ComponentFactory {
         const type = isString(obj.type) ? obj.type : "<unknown>"
         const maker = this.getMaker(type)
         return maker?.makeFromJSON(parent, obj)
+    }
+
+    // Runtime factory indirection avoids an Input -> Clock -> Input inheritance cycle.
+    public makeClock(parent: DrawableParent): Clock {
+        return ClockDef.make(parent)
     }
 
     public makeFromButton(parent: DrawableParent, elem: HTMLElement) {

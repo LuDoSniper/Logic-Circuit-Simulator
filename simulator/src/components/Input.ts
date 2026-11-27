@@ -4,7 +4,7 @@ import { COLOR_BACKGROUND, COLOR_COMPONENT_BORDER, COMPONENT_OUTLINE_THICKNESS, 
 import { div, mods, tooltipContent } from "../htmlgen"
 import { S } from "../strings"
 import { ArrayFillWith, binaryStringRepr, ComponentTypeInput, HighImpedance, InputOutputValueRepr, InteractionResult, LogicValue, Mode, Orientation, Unknown, reprForLogicValues, toLogicValueRepr, typeOrUndefined, valuesFromReprForInput } from "../utils"
-import { ClockDef, ClockRepr } from "./Clock"
+import type { ClockRepr } from "./Clock"
 import { Component, ComponentName, ComponentNameRepr, ExtractParamDefs, ExtractParams, InstantiatedComponentDef, NodesIn, NodesOut, ParametrizedComponentBase, Repr, ResolvedParams, SomeParametrizedComponentDef, defineParametrizedComponent, groupVertical, param, paramBool } from "./Component"
 import { DrawContext, DrawableParent, GraphicsRendering, MenuData, MenuItems, PointerOverMode } from "./Drawable"
 import { Node, NodeIn, NodeOut } from "./Node"
@@ -671,7 +671,7 @@ export class Input extends InputBase<InputRepr> {
         if (this.numBits === 1 && !this._isConstant) {
             const replaceWithClockItem =
                 MenuData.item("timer", s.ReplaceWithClock, () => {
-                    this.replaceWithComponent(ClockDef.make(this.parent))
+                    this.replaceWithComponent(this.parent.editor.factory.makeClock(this.parent))
                 })
 
             newItems.push(

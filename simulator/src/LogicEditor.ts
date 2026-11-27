@@ -1396,6 +1396,10 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         return this._menu?.allowGateType(type) ?? true
     }
 
+    public focusCanvasForHover() {
+        if (!this._dontHogFocus) this.focus()
+    }
+
     public override focus() {
         this.html.mainCanvas.focus({ preventScroll: true })
     }

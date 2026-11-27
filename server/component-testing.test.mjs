@@ -40,3 +40,12 @@ test("portable overflow example has eight valid independent cases", () => {
     }
     assert.equal(game.results,undefined)
 })
+
+import { resizeBus } from "../simulator/src/BusBits.ts"
+test("bus converter preserves LSB order, slices and extends", () => {
+    assert.deepEqual(resizeBus([1,0,1,1],2,0,false,0),[1,0])
+    assert.deepEqual(resizeBus([1,0,1,1],2,2,false,0),[1,1])
+    assert.deepEqual(resizeBus([1,1],4,0,false,0),[1,1,0,0])
+    assert.deepEqual(resizeBus([1,1],4,0,true,0),[1,1,1,1])
+    assert.deepEqual(resizeBus([1,0],4,0,true,0),[1,0,0,0])
+})

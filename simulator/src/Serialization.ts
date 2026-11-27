@@ -359,7 +359,7 @@ class _Serialization {
             const node1 = nodeMgr.findNode(nodeID1, nodeMapping)
             const node2 = nodeMgr.findNode(nodeID2, nodeMapping)
             if (node1 !== undefined && node2 !== undefined && node1.isOutput() && !node2.isOutput()) {
-                const completedWire = linkMgr.addWire(node1, node2, false)
+                const completedWire = linkMgr.addWire(node1, node2, false, wireOptions?.bus ?? false)
                 if (completedWire !== undefined) {
                     if (wireOptions !== undefined) {
                         completedWire.setOptions(wireOptions, componentsByRef)

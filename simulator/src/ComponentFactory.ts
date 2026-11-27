@@ -9,6 +9,7 @@ import { Add3IfGeq5, Add3IfGeq5Def } from "./components/Add3IfGeq5"
 import { Adder, AdderDef } from "./components/Adder"
 import { AdderArray, AdderArrayDef } from "./components/AdderArray"
 import { Bypass, BypassDef } from "./components/Bypass"
+import { BusConverter, BusConverterDef } from "./components/BusConverter"
 import { Clock, ClockDef } from "./components/Clock"
 import { Comparator, ComparatorDef } from "./components/Comparator"
 import { Component, ComponentBase, ComponentRepr } from "./components/Component"
@@ -62,6 +63,7 @@ export type ComponentForDef<TDef> = Component & (
     TDef extends typeof Add3IfGeq5Def ? Add3IfGeq5 :
     TDef extends typeof AdderArrayDef ? AdderArray :
     TDef extends typeof BypassDef ? Bypass :
+    TDef extends typeof BusConverterDef ? BusConverter :
     TDef extends typeof ClockDef ? Clock :
     TDef extends typeof ComparatorDef ? Comparator :
     TDef extends typeof ControlledInverterDef ? ControlledInverter :
@@ -147,6 +149,7 @@ const AllComponentDefs: ComponentMaker<any>[] = [
     LabelDef,
     RectangleDef,
     PassthroughDef,
+    BusConverterDef,
 
     // arithmetic
     HalfAdderDef,

@@ -339,16 +339,17 @@ export abstract class NodeBase<N extends Node> extends DrawableWithPosition {
         return "crosshair"
     }
 
-    public override pointerDown(__: PointerEvent) {
-        this.parent.linkMgr.startDraggingWireFrom(this.asNode)
+    public override pointerDown(e: PointerEvent) {
+        this.parent.linkMgr.startDraggingWireFrom(this.asNode, e.shiftKey)
         return { wantsDragEvents: false }
     }
 
-    public override pointerUp(__: PointerEvent) {
-        const newWire = this.parent.linkMgr.stopDraggingWireOn(this.asNode)
+    public override pointerUp(e: PointerEvent) {
+        const newWire = this.parent.linkMgr.stopDraggingWireOn(this.asNode, e.shiftKey)
         if (newWire === undefined) {
             return InteractionResult.NoChange
         }
+        if (newWire.bus) return InteractionResult.SimpleChange
         return tryMakeRepeatableNodeAction(newWire.startNode, newWire.endNode, (startNode, endNode) => {
             const newWire = this.parent.linkMgr.addWire(startNode, endNode, true)
             return newWire !== undefined

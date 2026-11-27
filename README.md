@@ -60,3 +60,7 @@ The account button opens the project manager. On first explicit sign-in, if the 
 ### Component exchange
 
 The Library toolbar button exports selected components with their transitive custom dependencies to a JSON file or to an account-owned SQLite library. Import adds copies to the current project; conflicting definitions are rejected rather than overwritten. Library snapshots do not track later changes to a project. Guest users can exchange files. The library database table is created automatically on startup. Development test games use `logic-remaster-tests` v1 JSON with port names, widths, input and expected output maps. Import maps ports, adds new cases and ignores any exported execution results. Export includes available results for the current circuit.
+
+### Multi-bit buses
+
+Drag between two multi-bit pin groups of equal width to connect corresponding bits as a single visual bus. Hold Shift for the original single-bit wiring. Existing scalar wires are unchanged. A bus uses normal per-bit wire records with an optional `bus` flag, so simulation and export retain each lane. Right-click a bus to split it back into individual wires. The Bus n → m converter (Layout) supports 1–32 bits, bit offset, zero extension and sign extension.

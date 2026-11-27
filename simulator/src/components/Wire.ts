@@ -1,12 +1,12 @@
 import { Bezier, Offset } from "bezier-js"
 import * as t from "io-ts"
 import { BezierCoords, COLOR_ANCHOR_NEW, COLOR_COMPONENT_KEY, COLOR_MOUSE_OVER, COLOR_UNKNOWN, COLOR_WIRE, GRID_STEP, LineCoords, NodeStyle, OPACITY_HIDDEN_ITEMS, WAYPOINT_DIAMETER, WIRE_WIDTH, colorForLogicValue, distSquaredToWaypointIfOver, drawAnchorTo, drawStraightWireLine, drawWaypoint, makeBezierCoords, strokeWireOutline, strokeWireOutlineAndSingleValue, strokeWireValue } from "../drawutils"
-import { span, style, title } from "../htmlgen"
+import { div, span, style, title, tooltipContent } from "../htmlgen"
 import { DrawParams } from "../LogicEditor"
 import { S } from "../strings"
 import { Timestamp } from "../Timeline"
 import { PointerDragEvent } from "../UIEventManager"
-import { InteractionResult, LogicValue, Mode, Orientation, Orientations_, isArray, isString, toLogicValueRepr, typeOrNull, typeOrUndefined } from "../utils"
+import { binaryStringRepr, InteractionResult, LogicValue, Mode, Orientation, Orientations_, isArray, isString, toLogicValueRepr, typeOrNull, typeOrUndefined } from "../utils"
 import { Component, NodeGroup } from "./Component"
 import { DrawContext, Drawable, DrawableParent, DrawableWithDraggablePosition, DrawableWithPosition, GraphicsRendering, MenuData, PointerOverMode, PositionSupportRepr } from "./Drawable"
 import { BranchPoint, Node, NodeIn, NodeOut, WireColor, tryMakeRepeatableNodeAction } from "./Node"
@@ -140,6 +140,49 @@ export class Waypoint extends DrawableWithDraggablePosition {
         g.globalAlpha = normalAlpha
     }
 
+    private drawBus(g: GraphicsRendering, ctx: DrawContext, bus: Wire[]) {
+        g.save()
+        if (this.isHidden) g.globalAlpha *= OPACITY_HIDDEN_ITEMS
+        const path = this.wirePath
+        const color = COLOR_WIRE[this.startNode.color]
+        const selected = ctx.pointerOver === PointerOverMode.PointerOver || ctx.pointerOver === PointerOverMode.WireSameOrigin
+        g.lineCap = "round"
+        g.lineJoin = "round"
+        path.draw(g)
+        g.strokeStyle = selected ? COLOR_MOUSE_OVER : color
+        g.lineWidth = selected ? 10 : 8
+        g.stroke()
+        g.strokeStyle = this.parent.editor.options.hideWireColors ? COLOR_UNKNOWN : "#6485ad"
+        g.lineWidth = 4
+        g.stroke()
+        // Fan the trunk out across the existing per-bit terminals.
+        g.strokeStyle = color
+        g.lineWidth = 2
+        for (const nodes of [bus.map(w => w.startNode), bus.map(w => w.endNode)]) {
+            g.beginPath()
+            g.moveTo(nodes[0].posX, nodes[0].posY)
+            g.lineTo(nodes[nodes.length-1].posX, nodes[nodes.length-1].posY)
+            g.stroke()
+        }
+        const first = path.parts[0], last = path.parts[path.parts.length - 1]
+        const x = (first[2] + last[0]) / 2
+        const y = (first[3] + last[1]) / 2
+        g.font = "bold 10px sans-serif"
+        g.textAlign = "center"
+        g.fillStyle = color
+        g.fillText(String(bus.length) + "b", x, y - 7)
+        for (const waypoint of this.waypoints) waypoint.draw(g, ctx.drawParams)
+        g.restore()
+    }
+
+    public override makeTooltip() {
+        const bus = this.busMembers
+        if (!bus) return undefined
+        const source = binaryStringRepr(bus.map(w => w.startNode.value))
+        const target = binaryStringRepr(bus.map(w => w.endNode.value))
+        return tooltipContent("Bus · " + bus.length + " bits", div("Entrée : " + source, div("Sortie : " + target)), 340)
+    }
+
     protected override shouldBeHighlightedWith(compUnderPointer: Drawable): PointerOverMode {
         return compUnderPointer instanceof Wire && compUnderPointer === this.wire ? PointerOverMode.RelatedComponent : PointerOverMode.None
     }
@@ -185,6 +228,7 @@ export class Wire extends Drawable {
                 propagationDelay: typeOrUndefined(t.number),
                 style: typeOrUndefined(t.keyof(WireStyles)),
                 hidden: typeOrUndefined(t.boolean),
+                bus: typeOrUndefined(t.boolean),
             }),
         ])
         return t.union([fullRepr, simpleRepr], "Wire")
@@ -201,6 +245,26 @@ export class Wire extends Drawable {
     private _waypointBeingDragged: Waypoint | undefined = undefined
     public customPropagationDelay: number | undefined = undefined
     public ribbon: Ribbon | undefined = undefined
+    public bus = false
+
+    /** A complete bus is still backed by individual bit connections. */
+    public get busMembers(): Wire[] | undefined {
+        if (!this.bus) return undefined
+        const from = this.startNode.group, to = this.endNode.group
+        if (!from || !to || from.nodes.length < 2 || from.nodes.length !== to.nodes.length) return undefined
+        const members: Wire[] = []
+        for (let i = 0; i < from.nodes.length; i++) {
+            const wire = to.nodes[i].incomingWire
+            if (!wire || !wire.bus || wire.startNode !== from.nodes[i] || !wire.isAlive) return undefined
+            members.push(wire)
+        }
+        return members
+    }
+
+    public get isBusFollower() {
+        const members = this.busMembers
+        return members !== undefined && members[0] !== this
+    }
 
     public constructor(startNode: NodeOut, endNode: NodeIn) {
         const parent = startNode.parent
@@ -218,6 +282,7 @@ export class Wire extends Drawable {
 
     // called immediately after construction by Serialization
     public setOptions(wireOptions: WireOptions, componentsByRef: Record<string, Component>) {
+        this.bus = wireOptions.bus ?? false
         this.doSetValidatedId(wireOptions.ref)
         if (wireOptions.via !== undefined) {
             this.setWaypoints(wireOptions.via, componentsByRef)
@@ -235,7 +300,7 @@ export class Wire extends Drawable {
 
     public toJSON(): WireRepr {
         const endID = this._endNode.id
-        if (this._waypoints.length === 0 && this.customPropagationDelay === undefined && this.ref === undefined && this.style === undefined && !this.isHidden) {
+        if (this._waypoints.length === 0 && this.customPropagationDelay === undefined && this.ref === undefined && this.style === undefined && !this.isHidden && !this.bus) {
             // no need for node options
             return [this._startNode.id, endID]
 
@@ -248,6 +313,7 @@ export class Wire extends Drawable {
                 propagationDelay: this.customPropagationDelay,
                 style: this.style,
                 hidden: this.isHidden === false ? undefined : this.isHidden,
+                bus: this.bus ? true : undefined,
             }]
         }
     }
@@ -285,10 +351,21 @@ export class Wire extends Drawable {
     }
 
     public get wirePath(): WirePath {
-        if (this._wirePath === undefined) {
+        const bus = this.busMembers
+        // The centre depends on all pins, not only on the first lane.
+        if (this._wirePath === undefined || bus !== undefined) {
             // eslint-disable-next-line prefer-const
-            let [startX, startY, prevX, prevY, prevProlong] = this.startNode.drawCoords
-            const [endLeadX, endLeadY, endNodeX, endNodeY, endNodeProlong] = this.endNode.drawCoords
+            function average(nodes: readonly Node[]): Node["drawCoords"] {
+                const first = nodes[0].drawCoords
+                const sum = [0, 0, 0, 0]
+                for (const node of nodes) {
+                    const coords = node.drawCoords
+                    for (let i = 0; i < 4; i++) sum[i] += coords[i] as number
+                }
+                return [sum[0]/nodes.length, sum[1]/nodes.length, sum[2]/nodes.length, sum[3]/nodes.length, first[4]]
+            }
+            let [startX, startY, prevX, prevY, prevProlong] = bus ? average(bus.map(w => w.startNode)) : this.startNode.drawCoords
+            const [endLeadX, endLeadY, endNodeX, endNodeY, endNodeProlong] = bus ? average(bus.map(w => w.endNode)) : this.endNode.drawCoords
             // technically not a waypoint, just the end node, but treated as such for building the path
             const lastWaypointData = { posX: endNodeX, posY: endNodeY, orient: endNodeProlong }
             const allWaypoints = [...this._waypoints, lastWaypointData]
@@ -549,6 +626,15 @@ export class Wire extends Drawable {
         const drawTime = ctx.drawParams.drawTime
         this.prunePropagatingValues(drawTime, propagationDelay)
 
+        const bus = this.busMembers
+        if (bus !== undefined) {
+            // Every lane still participates in propagation bookkeeping.
+            if (isAnimating && !this.parent.editor.timeline.isPaused) {
+                this.requestRedraw({ why: "propagating bus value", isPropagation: true })
+            }
+            if (bus[0] === this && !this.behavesHidden) this.drawBus(g, ctx, bus)
+            return
+        }
         if (this.behavesHidden) {
             return
         }
@@ -642,14 +728,14 @@ export class Wire extends Drawable {
     }
 
     public isOver(x: number, y: number): boolean {
-        if (this.parent.mode < Mode.CONNECT || !this.startNode.isAlive || !this.endNode.isAlive || this.behavesHidden) {
+        if (this.isBusFollower || this.parent.mode < Mode.CONNECT || !this.startNode.isAlive || !this.endNode.isAlive || this.behavesHidden) {
             return false
         }
         return this.wirePath.isOver(x, y)
     }
 
     public override pointerDown(e: PointerEvent) {
-        if (e.altKey && this.parent.mode >= Mode.DESIGN) {
+        if (!this.busMembers && e.altKey && this.parent.mode >= Mode.DESIGN) {
             const passthrough = this.addPassthroughFrom(e)
             if (passthrough !== undefined) {
                 return passthrough.outputs.Out[0].pointerDown(e)
@@ -683,6 +769,24 @@ export class Wire extends Drawable {
     public override makeContextMenu(): MenuData {
 
         const s = S.Components.Wire.contextMenu
+        const bus = this.busMembers
+        if (bus) return [
+            MenuData.item("add", s.AddMiddlePoint, (__itemEvent, contextEvent) => { this.addWaypointFrom(contextEvent) }),
+            MenuData.item("timer", "Délai de propagation du bus", async () => {
+                const value = await this.parent.editor.appPrompt("Délai en millisecondes (vide = valeur par défaut)", this.customPropagationDelay === undefined ? "" : String(this.customPropagationDelay))
+                if (value === null) return
+                const delay = value.trim() === "" ? undefined : Number(value)
+                if (delay !== undefined && (!Number.isFinite(delay) || delay < 0)) { await this.parent.editor.appAlert("Délai invalide."); return }
+                for (const wire of bus) wire.customPropagationDelay = delay
+                this.requestRedraw({ why: "bus delay changed" })
+            }),
+            MenuData.item("connect", "Séparer en fils individuels", () => {
+                for (const wire of bus) { wire.bus = false; wire.invalidateWirePath() }
+                this.requestRedraw({ why: "bus split", invalidateMask: true })
+            }),
+            MenuData.sep(),
+            MenuData.item("trash", "Supprimer le bus (" + bus.length + " bits)", () => this.parent.linkMgr.deleteWire(this), { color: "danger" }),
+        ]
         const currentPropDelayStr = this.customPropagationDelay === undefined ? "" : ` (${this.customPropagationDelay} ms)`
 
         const makeItemUseColor = (desc: string, color: WireColor) => {
@@ -980,6 +1084,7 @@ export class LinkManager {
     private readonly _wires: Wire[] = []
     private readonly _ribbons: Ribbon[] = []
     private _wireBeingAddedFrom: Node | undefined = undefined
+    private _singleBitDrag = false
 
     // anchors
     private _anchorBeingSetFrom: DrawableWithPosition | undefined = undefined
@@ -1016,10 +1121,11 @@ export class LinkManager {
         // draw all wires, collecting branch points
         const branchPointsMap = new Map<NodeOut, BranchPoint[]>()
         for (const wire of this._wires) {
-            if (useRibbons && wire.ribbon !== undefined) {
+            if (useRibbons && wire.ribbon !== undefined && !wire.bus) {
                 continue
             }
             wire.draw(g, drawParams)
+            if (wire.busMembers !== undefined) continue
             const nodeFrom = wire.startNode
             if (!branchPointsMap.has(nodeFrom)) {
                 branchPointsMap.set(nodeFrom, nodeFrom.branchPoints)
@@ -1067,7 +1173,11 @@ export class LinkManager {
                 const [a2x, a2y] = bezierAnchorForWire(outgoingOrient, x2, y2, bezierAnchorPointDistX, bezierAnchorPointDistY)
                 g.bezierCurveTo(a1x, a1y, a2x, a2y, x2, y2)
             }
-            strokeWireOutlineAndSingleValue(g, nodeFrom.value, nodeFrom.color, false, drawParams.drawTimeAnimationFraction, 0)
+            if (!this._singleBitDrag && (nodeFrom.group?.nodes.length ?? 0) > 1) {
+                g.strokeStyle = "#6485ad"
+                g.lineWidth = 6
+                g.stroke()
+            } else strokeWireOutlineAndSingleValue(g, nodeFrom.value, nodeFrom.color, false, drawParams.drawTimeAnimationFraction, 0)
         }
     }
 
@@ -1096,17 +1206,18 @@ export class LinkManager {
         }
     }
 
-    public addWire(startNode: NodeOut, endNode: NodeIn, tryOffset: boolean): Wire | undefined {
+    public addWire(startNode: NodeOut, endNode: NodeIn, tryOffset: boolean, bus = false): Wire | undefined {
         if (!startNode.acceptsMoreConnections || !endNode.acceptsMoreConnections) {
             return undefined
         }
         const wire = new Wire(startNode, endNode)
+        wire.bus = bus
         this._wires.push(wire)
         if (tryOffset) {
             // done only when creating a new wire manually
             this.offsetWireIfNeeded(wire)
         }
-        this.tryMergeWire(wire)
+        if (!bus) this.tryMergeWire(wire)
         this.parent.ifEditing?.setToolCursor(null)
         this.parent.ifEditing?.setDirty("added wire")
         this.parent.ifEditing?.redrawMgr.requestRedraw({ why: "wire added", invalidateMask: true, invalidateTests: true })
@@ -1161,7 +1272,7 @@ export class LinkManager {
         this.parent.ifEditing?.setToolCursor(null)
     }
 
-    public startDraggingWireFrom(node: Node) {
+    public startDraggingWireFrom(node: Node, singleBit = false) {
         if (this._wireBeingAddedFrom !== undefined) {
             console.warn("LinkManager.startDraggingFrom: already dragging from a node")
         }
@@ -1169,16 +1280,43 @@ export class LinkManager {
             return
         }
         this._wireBeingAddedFrom = node
+        this._singleBitDrag = singleBit
         this.parent.ifEditing?.setToolCursor("crosshair")
     }
 
-    public stopDraggingWireOn(newNode: Node): Wire | undefined {
+    public stopDraggingWireOn(newNode: Node, singleBit = false): Wire | undefined {
+        const from = this._wireBeingAddedFrom
         const nodes = this.getOutInNodesForNewWire(newNode)
+        const useSingle = singleBit || this._singleBitDrag
         this._wireBeingAddedFrom = undefined
-        if (nodes === undefined) {
-            return undefined
+        this._singleBitDrag = false
+        if (!nodes) return undefined
+        const [out, input] = nodes
+        const source = out.group, target = input.group
+        // A normal drag between two multi-bit terminals connects bit i to bit i.
+        // Shift retains the original individual-wire gesture.
+        if (!useSingle && from && from.isOutput() !== newNode.isOutput() && source && target && source.nodes.length > 1 && target.nodes.length > 1) {
+            if (source.nodes.length !== target.nodes.length) {
+                this.parent.editor.showMessage("Bus incompatibles : " + source.nodes.length + " → " + target.nodes.length + " bits. Utilisez un convertisseur ou Maj pour un seul bit.")
+                return undefined
+            }
+            if (target.nodes.some(n => !n.acceptsMoreConnections)) {
+                this.parent.editor.showMessage("Certaines broches du bus sont déjà connectées. Déconnectez-les ou utilisez Maj pour un seul bit.")
+                return undefined
+            }
+            const created: Wire[] = []
+            for (let i = 0; i < source.nodes.length; i++) {
+                const wire = this.addWire(source.nodes[i], target.nodes[i], false, true)
+                if (!wire) {
+                    for (const added of created) this.doDeleteWire(added)
+                    return undefined
+                }
+                created.push(wire)
+            }
+            this.parent.editor.showMessage("Bus " + created.length + " bits connecté")
+            return created[0]
         }
-        return this.addWire(nodes[0], nodes[1], true)
+        return this.addWire(out, input, true)
     }
 
     public isValidNodeToConnect(node: Node): boolean {
@@ -1271,6 +1409,7 @@ export class LinkManager {
     }
 
     private tryMergeWire(wire: Wire) {
+        if (wire.bus) return
         const startNode = wire.startNode
         const endNode = wire.endNode
 
@@ -1284,7 +1423,8 @@ export class LinkManager {
             if (i1 < 0 || i2 < 0 || i1 >= group1.nodes.length || i2 >= group2.nodes.length) {
                 return undefined
             }
-            return group1.nodes[i1].findWireTo(group2.nodes[i2])
+            const candidate = group1.nodes[i1].findWireTo(group2.nodes[i2])
+            return candidate?.bus ? undefined : candidate
         }
 
         const indexStart = startGroup.nodes.indexOf(startNode)
@@ -1332,6 +1472,11 @@ export class LinkManager {
     }
 
     public deleteWire(wire: Wire): InteractionResult {
+        const members = wire.busMembers
+        if (members) {
+            for (const member of members) this.doDeleteWire(member)
+            return InteractionResult.SimpleChange
+        }
         // TODO check in ribbon
         const oldStartNode = wire.startNode
         const oldEndNode = wire.endNode
@@ -1349,6 +1494,7 @@ export class LinkManager {
     }
 
     private doDeleteWire(wire: Wire): boolean {
+        if (!this._wires.includes(wire)) return false
         // TODO check in ribbon
         wire.destroy()
         const ribbon = wire.ribbon
@@ -1376,6 +1522,7 @@ export class LinkManager {
             wire.destroy()
         }
         this._wires.length = 0
+        this._ribbons.length = 0
         this.parent.ifEditing?.redrawMgr.requestRedraw({ why: "all wires deleted", invalidateMask: true, invalidateTests: true })
     }
 

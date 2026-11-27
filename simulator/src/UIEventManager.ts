@@ -286,6 +286,7 @@ export class UIEventManager {
             if (!pullingWire && !settingAnchor) {
                 // wires
                 for (const wire of root.linkMgr.wires) {
+                    if (wire.isBusFollower) continue
                     if (!showHiddenWires && wire.isHidden) {
                         continue
                     }
@@ -561,6 +562,8 @@ export class UIEventManager {
                 this.doPointerMove(e)
             }
         })
+        // Reclaim canvas keyboard focus when entering it, not while a modal is open.
+        canvas.addEventListener("pointerenter", () => editor.focusCanvasForHover())
         // pointerleave: outside of canvas incl. descendants
         canvas.onpointerleave = e => {
             const tooltip = editor.html.tooltipElem
@@ -715,10 +718,21 @@ export class UIEventManager {
         }))
 
         canvas.addEventListener("keydown", editor.wrapAsyncHandler(async e => {
+            if (targetIsFieldOrOtherInput(e)) return
             const ctrlOrCommand = e.ctrlKey || e.metaKey
             const keyLower = e.key.toLowerCase()
             const shift = e.shiftKey || (keyLower !== e.key)
             switch (keyLower) {
+                case "enter": {
+                    if (e.repeat) return
+                    const hovered = this._currentComponentUnderPointer
+                    const target = hovered instanceof NodeBase ? hovered.component : hovered
+                    if (target && editor.mode >= Mode.DESIGN) {
+                        e.preventDefault()
+                        target.keyDown(e)
+                    }
+                    return
+                }
                 case "a":
                     if (ctrlOrCommand && editor.mode >= Mode.CONNECT && !targetIsFieldOrOtherInput(e)) {
                         e.preventDefault()

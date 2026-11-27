@@ -432,7 +432,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
         widthInput.value = String(def.gridWidth)
         heightInput.value = String(def.gridHeight)
         automaticSize.disabled = draftSize === undefined
-        dropHint.textContent = "Taille : " + def.gridWidth + " × " + def.gridHeight + " cases. Glissez les poignées pour redimensionner."
+        dropHint.textContent = "Taille : " + def.gridWidth + " × " + def.gridHeight + " cases. Glissez les bordures ou les angles pour redimensionner."
         allEntries = pins.map(pin => ({ id: pin.id, side: pin.orient, ...(pin.bus ? { bus: true } : {}) }))
         groups.replaceChildren()
         for (const side of sides) {
@@ -567,10 +567,20 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
             if (dy !== 0) attrs.transform = "rotate(-90 " + tx + " " + ty + ")"
             shape("text", attrs, label, group)
         }
-        for (const [dx,dy] of [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]]) {
-            const handle = shape("rect",{x:dx*w/2-5,y:dy*h/2-5,width:10,height:10,rx:2,class:"symbol-resize-handle"})
+        // Invisible resize hit areas along the full edges, with diagonal corners.
+        // Keep most of each area inside the outline to avoid intercepting external pins.
+        const edge = 6, corner = 11, outside = 2
+        for (const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]]) {
+            const isCorner = dx !== 0 && dy !== 0
+            const thickness = isCorner ? corner : edge
+            const handle = shape("rect",{
+                x: dx === 0 ? -w/2+corner : dx < 0 ? -w/2-outside : w/2-thickness,
+                y: dy === 0 ? -h/2+corner : dy < 0 ? -h/2-outside : h/2-thickness,
+                width: dx === 0 ? Math.max(0,w-2*corner) : thickness+outside,
+                height: dy === 0 ? Math.max(0,h-2*corner) : thickness+outside,
+                class:"symbol-resize-hit",
+            })
             handle.style.cursor = dx === 0 ? "ns-resize" : dy === 0 ? "ew-resize" : dx === dy ? "nwse-resize" : "nesw-resize"
-            shape("title",{},"Redimensionner sur la grille",handle)
             handle.addEventListener("pointerdown",e => {
                 if (e.button !== 0 || !e.isPrimary || drag || resize) return
                 const transform = svg.getScreenCTM()

@@ -761,7 +761,7 @@ export class ComponentFactory {
 
         // Internal outputs are still included as signal sinks, but are not interface ports.
         // They need neither a name nor a unique external port label.
-        const namesValid = checkNames(inputs) && checkNames(outputs.filter(out => !out.isInternal))
+        const namesValid = checkNames(inputs.filter(input => !input.isConstant)) && checkNames(outputs.filter(out => !out.isInternal))
         if (!namesValid) {
             return s.InputsOutputsMustHaveNames
         }
@@ -847,12 +847,12 @@ export class ComponentFactory {
             return s.EmptySelection
         }
 
-        const inputs = components.filter((e): e is Input => e instanceof Input)
+        const inputs = components.filter((e): e is Input => e instanceof Input && !e.isConstant)
         if (inputs.length === 0) {
             return s.NoInput
         }
 
-        const outputs = components.filter((e): e is Output => e instanceof Output)
+        const outputs = components.filter((e): e is Output => e instanceof Output && !e.isInternal)
         if (outputs.length === 0) {
             return s.NoOutput
         }

@@ -133,3 +133,11 @@ test("probe display keeps bit zero at the top or right in every orientation", ()
     assert.deepEqual(values,[0,1,2,3,4,5,6,7])
     assert.deepEqual(probeDisplayValues([1],"n"),[1])
 })
+
+test("multibit constant values affect functional test signatures, unlike variable inputs", () => {
+    const make = (val,isConstant) => ({components:{A:{type:"in",bits:8,val,isConstant}},wires:[]})
+    const sig = (val,locked) => circuitSignature(make(val,locked),()=>undefined)
+    assert.notEqual(sig("00000101",true),sig("00000110",true))
+    assert.equal(sig("00000101",false),sig("00000110",false))
+    assert.notEqual(sig("00000101",false),sig("00000101",true))
+})

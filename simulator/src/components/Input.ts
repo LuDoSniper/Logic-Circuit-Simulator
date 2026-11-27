@@ -2,7 +2,7 @@ import * as t from "io-ts"
 import { COLOR_BACKGROUND, COLOR_COMPONENT_BORDER, COMPONENT_OUTLINE_THICKNESS, GRID_STEP, INPUT_OUTPUT_DIAMETER, circle, colorForLogicValue, distSquared, drawComponentName, drawValueText, drawValueTextCentered, drawWireLineToComponent, inRect, isTrivialNodeName, triangle, useCompact } from "../drawutils"
 import { mods, tooltipContent } from "../htmlgen"
 import { S } from "../strings"
-import { ArrayFillWith, ComponentTypeInput, HighImpedance, InputOutputValueRepr, InteractionResult, LogicValue, Mode, Orientation, Unknown, reprForLogicValues, toLogicValueRepr, typeOrUndefined, valuesFromReprForInput } from "../utils"
+import { ArrayFillWith, binaryStringRepr, ComponentTypeInput, HighImpedance, InputOutputValueRepr, InteractionResult, LogicValue, Mode, Orientation, Unknown, reprForLogicValues, toLogicValueRepr, typeOrUndefined, valuesFromReprForInput } from "../utils"
 import { ClockDef, ClockRepr } from "./Clock"
 import { Component, ComponentName, ComponentNameRepr, ExtractParamDefs, ExtractParams, InstantiatedComponentDef, NodesIn, NodesOut, ParametrizedComponentBase, Repr, ResolvedParams, SomeParametrizedComponentDef, defineParametrizedComponent, groupVertical, param, paramBool } from "./Component"
 import { DrawContext, DrawableParent, GraphicsRendering, MenuData, MenuItems, PointerOverMode } from "./Drawable"
@@ -395,8 +395,8 @@ export class Input extends InputBase<InputRepr> {
         this.numBits = params.numBits
         this.showAsSwitch = params.showAsSwitch
 
-        this._isPushButton = saved?.isPushButton ?? InputDef.aults.isPushButton
         this._isConstant = saved?.isConstant ?? InputDef.aults.isConstant
+        this._isPushButton = !this._isConstant && (saved?.isPushButton ?? InputDef.aults.isPushButton)
     }
 
     public toJSON() {
@@ -558,6 +558,7 @@ export class Input extends InputBase<InputRepr> {
     }
 
     public override doSetIsPushButton(isPushButton: boolean) {
+        if (this._isConstant) return
         this._isPushButton = isPushButton
         if (isPushButton) {
             this.doSetValue(ArrayFillWith(false, this.numBits))
@@ -565,8 +566,11 @@ export class Input extends InputBase<InputRepr> {
     }
 
     public doSetIsConstant(isConstant: boolean) {
+        if (this._isConstant === isConstant) return
         this._isConstant = isConstant
-        this.requestRedraw({ why: "constant changed" })
+        if (isConstant) this._isPushButton = false
+        this.requestRedraw({ why: "constant changed", invalidateTests: true })
+        this.parent.ifEditing?.setDirty("constant changed")
     }
 
     protected override makeComponentSpecificContextMenuItems(): MenuItems {
@@ -580,9 +584,11 @@ export class Input extends InputBase<InputRepr> {
         }
 
         const newItems: MenuItems = [
-            ["mid", makeItemBehaveAs(s.ToggleButton, false)],
-            ["mid", makeItemBehaveAs(s.PushButton, true)],
-            ["mid", MenuData.sep()],
+            ...(this._isConstant ? [] : [
+                ["mid", makeItemBehaveAs(s.ToggleButton, false)],
+                ["mid", makeItemBehaveAs(s.PushButton, true)],
+                ["mid", MenuData.sep()],
+            ] as MenuItems),
             ...(this.numBits !== 1 ? [] : [
                 this.makeChangeBooleanParamsContextMenuItem(s.ParamSwitch, this.showAsSwitch, "switch"),
             ]),
@@ -592,20 +598,21 @@ export class Input extends InputBase<InputRepr> {
 
         ]
 
-        if (this.numBits === 1) {
-            const makeToggleConstantItem = () => {
-                const icon = this._isConstant ? "check" : "none"
-                const action = () => this.doSetIsConstant(!this._isConstant)
-                return MenuData.item(icon, s.LockValue + ` (${toLogicValueRepr(this.value[0])})`, action)
-            }
+        // Lock the complete word, not just single-bit inputs.
+        newItems.push(
+            ["mid", MenuData.item(this._isConstant ? "check" : "none",
+                s.LockValue + ` (${binaryStringRepr(this.value)})`,
+                () => this.doSetIsConstant(!this._isConstant))],
+            ["mid", MenuData.sep()],
+        )
+
+        if (this.numBits === 1 && !this._isConstant) {
             const replaceWithClockItem =
                 MenuData.item("timer", s.ReplaceWithClock, () => {
                     this.replaceWithComponent(ClockDef.make(this.parent))
                 })
 
             newItems.push(
-                ["mid", makeToggleConstantItem()],
-                ["mid", MenuData.sep()],
                 ["mid", replaceWithClockItem],
                 ["mid", MenuData.sep()],
             )

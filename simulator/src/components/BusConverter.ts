@@ -32,6 +32,10 @@ export type BusConverterRepr = Repr<typeof BusConverterDef>
 type BusConverterParams = ResolvedParams<typeof BusConverterDef>
 export class BusConverter extends ParametrizedComponentBase<BusConverterRepr> {
     private readonly config: BusConverterParams
+    public get from() { return this.config.from }
+    public get to() { return this.config.to }
+    public get offset() { return this.config.offset }
+    public get signed() { return this.config.signed }
     constructor(parent: DrawableParent, params: BusConverterParams, saved?: BusConverterRepr) {
         super(parent,BusConverterDef.with(params),saved)
         this.config = params

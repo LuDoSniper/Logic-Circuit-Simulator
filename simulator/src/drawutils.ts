@@ -1224,7 +1224,7 @@ function bezierBoundingBox(coords: BezierCoordsInit, margin: number): [left: num
     return [minX - margin, minY - margin, maxX + margin, maxY + margin]
 }
 
-export function isPointCloseToStraightWire(x: number, y: number, coords: LineCoords): boolean {
+export function isPointCloseToStraightWire(x: number, y: number, coords: LineCoords, tolerance?: number): boolean {
     const [x1, y1, x2, y2] = coords
     const dx = x2 - x1
     const dy = y2 - y1
@@ -1245,7 +1245,7 @@ export function isPointCloseToStraightWire(x: number, y: number, coords: LineCoo
     const closestX = x1 + t * dx
     const closestY = y1 + t * dy
     const dist2 = (x - closestX) ** 2 + (y - closestY) ** 2
-    return dist2 <= WIRE_WIDTH_HALF_SQUARED
+    return dist2 <= (tolerance === undefined ? WIRE_WIDTH_HALF_SQUARED : tolerance ** 2)
 }
 
 export function fractionIfPointOnStraightSegment(x: number, y: number, coords: LineCoords): number | undefined {
@@ -1309,12 +1309,13 @@ export function makeBezierCoords(coords: BezierCoordsInit): BezierCoords {
     return [...coords, bezierMeta]
 }
 
-export function isPointCloseToBezierWire(x: number, y: number, coords: BezierCoords): boolean {
+export function isPointCloseToBezierWire(x: number, y: number, coords: BezierCoords, tolerance?: number): boolean {
     const bezierMeta = coords[8]
 
     // fast reject outside bounding box
     const [left, top, right, bottom] = bezierMeta.boundingBox
-    if (x < left || x > right || y < top || y > bottom) {
+    const extra = tolerance ?? 0
+    if (x < left - extra || x > right + extra || y < top - extra || y > bottom + extra) {
         return false
     }
 
@@ -1323,7 +1324,7 @@ export function isPointCloseToBezierWire(x: number, y: number, coords: BezierCoo
     for (let t = 0; t <= 1; t += stepSize) {
         const [wx, wy] = bezierPoint(t, coords)
         const dist2 = (wx - x) ** 2 + (wy - y) ** 2
-        if (dist2 <= WIRE_WIDTH_HALF_SQUARED) {
+        if (dist2 <= (tolerance === undefined ? WIRE_WIDTH_HALF_SQUARED : tolerance ** 2)) {
             return true
         }
     }

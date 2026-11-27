@@ -107,21 +107,21 @@ export class WirePath {
         }
     }
 
-    public isOver(x: number, y: number): boolean {
-        return this.partIndexIfMouseover(x, y) !== undefined
+    public isOver(x: number, y: number, tolerance?: number): boolean {
+        return this.partIndexIfMouseover(x, y, tolerance) !== undefined
     }
 
-    public partIndexIfMouseover(x: number, y: number): undefined | number {
+    public partIndexIfMouseover(x: number, y: number, tolerance?: number): undefined | number {
         for (let i = 0; i < this.parts.length - 1; i++) {
             const part = this.parts[i]
             if (part.length === 4) {
                 // line
-                if (isPointCloseToStraightWire(x, y, part)) {
+                if (isPointCloseToStraightWire(x, y, part, tolerance)) {
                     return i
                 }
             } else {
                 // bezier
-                if (isPointCloseToBezierWire(x, y, part)) {
+                if (isPointCloseToBezierWire(x, y, part, tolerance)) {
                     return i
                 }
             }

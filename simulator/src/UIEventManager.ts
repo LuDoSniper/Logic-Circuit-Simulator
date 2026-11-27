@@ -954,7 +954,10 @@ export class UIEventManager {
             const comp = this.updateComponentUnderPointer(this.editor.offsetXY(e), linkMgr.isAddingWire, linkMgr.isSettingAnchor, e.pointerType === "touch")
             const isBus = comp instanceof Wire && comp.busTooltipValues !== undefined
             // Do not restart the bus hover timer on every small pointer movement.
-            if (isBus && previous === comp && (this._startHoverTimeoutHandle !== null || this._currentTooltip !== null)) return
+            if (isBus && previous === comp && (this._startHoverTimeoutHandle !== null || this._currentTooltip !== null)) {
+                this.editor.updateCursor(e)
+                return
+            }
             this.clearHoverTimeoutHandle()
             if (comp !== null) {
                 this._startHoverTimeoutHandle = setTimeout(() => {

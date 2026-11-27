@@ -745,7 +745,7 @@ export class Wire extends Drawable {
         if (this.isBusFollower || this.parent.mode < Mode.CONNECT || !this.startNode.isAlive || !this.endNode.isAlive || this.behavesHidden) {
             return false
         }
-        return this.wirePath.isOver(x, y)
+        return this.wirePath.isOver(x, y, this.busMembers !== undefined ? 6 : undefined)
     }
 
     public override pointerDown(e: PointerEvent) {

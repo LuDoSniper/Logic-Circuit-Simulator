@@ -913,6 +913,8 @@ export abstract class ComponentBase<
             skipLabels?: boolean,
             labelSize?: number,
             background?: string,
+            backgroundTint?: string | undefined,
+            backgroundTintOpacity?: number,
             componentName?: [name: ComponentName, onRight: boolean, value: string | number | (() => string | number)]
         }
     ) {
@@ -923,6 +925,13 @@ export abstract class ComponentBase<
         g.fillStyle = opts?.background ?? COLOR_BACKGROUND
         const outline = bounds.outline(g)
         g.fill(outline)
+        if (opts?.backgroundTint !== undefined) {
+            g.save()
+            g.globalAlpha *= opts.backgroundTintOpacity ?? .28
+            g.fillStyle = opts.backgroundTint
+            g.fill(outline)
+            g.restore()
+        }
 
         // inputs/outputs lines
         for (const node of this.allNodes()) {

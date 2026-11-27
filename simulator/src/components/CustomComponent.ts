@@ -1,6 +1,6 @@
 import * as t from "io-ts"
 import { ComponentDocumentation, circuitSignature, defaultDocumentation } from "../CustomComponentTesting"
-import { ExternalPinLayout, SymbolSize, minimumSymbolSize, snapSymbolSize, fitSymbolCaption } from "../ExternalPinLayout"
+import { ExternalPinLayout, SymbolSize, minimumSymbolSize, snapSymbolSize, fitSymbolCaption, SymbolColor, symbolColorPalette, resolveSymbolColor, symbolTintOpacity } from "../ExternalPinLayout"
 import { ComponentFactory } from "../ComponentFactory"
 import { ComponentList } from "../ComponentList"
 import { LogicEditor } from "../LogicEditor"
@@ -11,8 +11,8 @@ import { Serialization } from "../Serialization"
 import { TestSuites } from "../TestSuite"
 import { UIPermissions } from "../UIPermissions"
 import { COLOR_COMPONENT_BORDER, TextVAlign, fillTextVAlign } from "../drawutils"
-import { b, div, mods, span, tooltipContent } from "../htmlgen"
-import { S } from "../strings"
+import { b, div, mods, span, style, tooltipContent } from "../htmlgen"
+import { S, getLang } from "../strings"
 import { ArrayFillUsing, ArrayFillWith, InteractionResult, LogicValue, Orientation, Orientations, ParentType, isArray, isString, typeOrUndefined, validateJson } from "../utils"
 import { Component, ComponentBase, ComponentRepr, InjectedParams, NodeDesc, NodeGroupDesc, NodeInDesc, NodeOutDesc, NodeRec, defineComponent, groupHorizontal, groupVertical } from "./Component"
 import { DrawContext, DrawableParent, EditTools, GraphicsRendering, MenuData, MenuItems } from "./Drawable"
@@ -46,7 +46,7 @@ export const CustomComponentDefRepr = t.intersection([t.type({
         components: typeOrUndefined(t.record(t.string, t.record(t.string, t.unknown))),
         wires: typeOrUndefined(t.array(Wire.Repr)),
     }),
-}), t.partial({ pinLayout: ExternalPinLayout, symbolSize: SymbolSize, documentation: ComponentDocumentation })])
+}), t.partial({ pinLayout: ExternalPinLayout, symbolSize: SymbolSize, symbolColor: SymbolColor, documentation: ComponentDocumentation })])
 
 export type CustomComponentDefRepr = t.TypeOf<typeof CustomComponentDefRepr>
 type CircuitRepr = CustomComponentDefRepr["circuit"]
@@ -59,6 +59,7 @@ export class CustomComponentDef {
     public readonly insOuts: CustomComponentNodeSpec[]
     public readonly pinLayout: ExternalPinLayout | undefined
     public readonly symbolSize: SymbolSize | undefined
+    public readonly symbolColor: string | undefined
     public readonly documentation: ComponentDocumentation
     public readonly numInputs: number
     public readonly numOutputs: number
@@ -74,6 +75,7 @@ export class CustomComponentDef {
             circuit: this.circuit,
             ...(this.pinLayout === undefined ? {} : { pinLayout: this.pinLayout }),
             ...(this.symbolSize === undefined ? {} : { symbolSize: this.symbolSize }),
+            ...(this.symbolColor === undefined ? {} : { symbolColor: this.symbolColor }),
             documentation: this.documentation,
         }
     }
@@ -97,6 +99,7 @@ export class CustomComponentDef {
         this.circuit = data.circuit
         this.pinLayout = data.pinLayout
         this.symbolSize = data.symbolSize
+        this.symbolColor = data.symbolColor
         this.documentation = data.documentation ?? defaultDocumentation()
 
         this.insOuts = []
@@ -239,6 +242,12 @@ export class CustomComponentDef {
 
         // frame
         g.rect(10, 2, 30, 30)
+        if (this.symbolColor !== undefined) {
+            g.fillStyle = this.symbolColor
+            g.globalAlpha = symbolTintOpacity
+            g.fill()
+            g.globalAlpha = 1
+        }
         g.strokeStyle = "currentColor"
         g.lineWidth = 2
         g.stroke()
@@ -318,7 +327,7 @@ export class CustomComponentDef {
     }
 }
 
-export const CustomComponentRepr = ComponentRepr(true, true)
+export const CustomComponentRepr = t.intersection([ComponentRepr(true, true), t.partial({ colorOverride: t.union([SymbolColor,t.null]) })])
 export type CustomComponentRepr = t.TypeOf<typeof CustomComponentRepr>
 
 
@@ -331,6 +340,8 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
     public get customDef() { return this._customDef }
     public draftPinLayout: ExternalPinLayout | undefined
     public draftSymbolSize: SymbolSize | undefined
+    public draftSymbolColor: string | undefined
+    private _colorOverride: string | null | undefined
     public draftDocumentation: ComponentDocumentation
     public readonly numInputs: number
     public readonly numOutputs: number
@@ -366,6 +377,8 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
         this._customDef = customDef
         this.draftPinLayout = customDef.pinLayout?.map(pin => ({ ...pin }))
         this.draftSymbolSize = customDef.symbolSize === undefined ? undefined : { ...customDef.symbolSize }
+        this.draftSymbolColor = customDef.symbolColor
+        this._colorOverride = saved?.colorOverride
         this.draftDocumentation = structuredClone(customDef.documentation)
         this.numInputs = this.inputs._all.length
         this.numOutputs = this.outputs._all.length
@@ -418,8 +431,16 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
         return this.customDef?.customId ?? ""
     }
 
-    public toJSON() {
-        return this.toJSONBase()
+    public toJSON(): CustomComponentRepr {
+        return { ...this.toJSONBase(), ...(this._colorOverride === undefined ? {} : { colorOverride: this._colorOverride }) }
+    }
+
+    private setColorOverride(color: string | null | undefined) {
+        if (this._colorOverride === color) return
+        this._colorOverride = color
+        this.requestRedraw({ why: "custom component color changed" })
+        this.parent.ifEditing?.setDirty("custom component color changed")
+        return InteractionResult.SimpleChange
     }
 
     protected override jsonType() {
@@ -511,7 +532,10 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
     // TODO tooltip
 
     protected override doDraw(g: GraphicsRendering, ctx: DrawContext): void {
-        super.doDrawDefault(g, ctx, () => {
+        super.doDrawDefault(g, ctx, {
+            backgroundTint: resolveSymbolColor(this.customDef.symbolColor,this._colorOverride),
+            backgroundTintOpacity: symbolTintOpacity,
+            drawLabels: () => {
             const fit = fitSymbolCaption(this.customDef.caption,this.customDef.captionWidth(),(text,font) => {
                 g.font = "bold " + font + "px sans-serif"
                 return g.measureText(text).width
@@ -520,14 +544,30 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
             g.fillStyle = COLOR_COMPONENT_BORDER
             g.textAlign = "center"
             fillTextVAlign(g, TextVAlign.middle, fit.text, this.posX, this.posY)
+            },
         })
     }
 
     protected override makeComponentSpecificContextMenuItems(): MenuItems {
         const s = S.Components.Custom.contextMenu
-
+        const tr = (fr:string,en:string) => getLang() === "fr" ? fr : en
+        const palette = symbolColorPalette.map(({color,fr,en}) => MenuData.item(this._colorOverride === color ? "check" : "none",
+            mods(span(style("display:inline-block;width:13px;height:13px;border-radius:3px;vertical-align:middle;margin-right:8px;background:"+color)),tr(fr,en)),
+            () => this.setColorOverride(color)))
+        const custom = MenuData.item("pen",tr("Couleur personnalisée…","Custom color…"),async () => {
+            const value = await this.editor.appPrompt(tr("Couleur hexadécimale (#RRGGBB)","Hex color (#RRGGBB)"),resolveSymbolColor(this.customDef.symbolColor,this._colorOverride) ?? "#3b82f6")
+            if (value === null) return
+            const parsed = SymbolColor.decode(value.trim())
+            if (parsed._tag !== "Right") { await this.editor.appAlert(tr("Couleur invalide : utilisez #RRGGBB.","Invalid color: use #RRGGBB.")); return }
+            return this.setColorOverride(parsed.right)
+        })
         return [
             ...this.makeForceOutputsContextMenuItem(),
+            ["mid",MenuData.submenu("palette",tr("Couleur de cette instance","Instance color"),[
+                MenuData.item(this._colorOverride === undefined ? "check" : "none",tr("Couleur du composant (héritée)","Component color (inherited)"),() => this.setColorOverride(undefined)),
+                MenuData.item(this._colorOverride === null ? "check" : "none",tr("Sans couleur","No color"),() => this.setColorOverride(null)),
+                MenuData.sep(),...palette,MenuData.sep(),custom,
+            ])],
             ["mid", MenuData.item("connect", s.ChangeCircuit, () => {
                 this.tryOpenEditor()
             }, { shortcut: "↩︎" })],

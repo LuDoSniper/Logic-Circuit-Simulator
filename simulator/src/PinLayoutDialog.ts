@@ -1,5 +1,5 @@
 import type { CustomComponent, CustomComponentDef } from "./components/CustomComponent"
-import { type ExternalPinLayout, type SymbolSize, snapSymbolSize, fitSymbolCaption } from "./ExternalPinLayout"
+import { type ExternalPinLayout, type SymbolSize, snapSymbolSize, fitSymbolCaption, symbolColorPalette, symbolTintOpacity } from "./ExternalPinLayout"
 import { Serialization } from "./Serialization"
 import type { Orientation } from "./utils"
 import { useCompact } from "./drawutils"
@@ -13,12 +13,14 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     const circuit = Serialization.buildComponentsAndWireObject([...root.components.all()], [], undefined)
     let draft = root.draftPinLayout?.map(pin => ({ ...pin }))
     let draftSize = root.draftSymbolSize === undefined ? undefined : { ...root.draftSymbolSize }
+    let draftColor = root.draftSymbolColor
     const makeDef = (layout: ExternalPinLayout | undefined) => new makeDefinition({
         id: root.customDef.customId,
         caption: root.customDef.caption,
         circuit: { components: { ...circuit.components }, wires: circuit.wires },
         ...(layout === undefined ? {} : { pinLayout: layout }),
         ...(draftSize === undefined ? {} : { symbolSize: draftSize }),
+        ...(draftColor === undefined ? {} : { symbolColor: draftColor }),
     })
 
     const dialog = document.createElement("dialog")
@@ -94,7 +96,36 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     automaticSize.textContent = "Taille automatique"
     automaticSize.addEventListener("click",() => { draftSize = undefined; render() })
     sizeControls.append(automaticSize)
-    previewPanel.append(previewTitle, sizeControls, preview, dropHint)
+    const colorControls = document.createElement("div")
+    colorControls.className = "symbol-color-controls"
+    const colorLabel = document.createElement("span")
+    colorLabel.textContent = "Couleur par défaut"
+    colorControls.append(colorLabel)
+    const swatches = document.createElement("div")
+    swatches.className = "symbol-color-swatches"
+    const colors = new Map<string,HTMLButtonElement>()
+    for (const {color,fr} of symbolColorPalette) {
+        const swatch = document.createElement("button")
+        swatch.type = "button"
+        swatch.className = "symbol-color-swatch"
+        swatch.style.setProperty("--swatch",color)
+        swatch.title = fr
+        swatch.setAttribute("aria-label",fr)
+        swatch.addEventListener("click",() => { draftColor = color; render() })
+        colors.set(color,swatch)
+        swatches.append(swatch)
+    }
+    const picker = document.createElement("input")
+    picker.type = "color"
+    picker.title = "Couleur personnalisée"
+    picker.setAttribute("aria-label","Couleur personnalisée")
+    picker.addEventListener("input",() => { draftColor = picker.value; render() })
+    const clearColor = document.createElement("button")
+    clearColor.type = "button"
+    clearColor.textContent = "Sans couleur"
+    clearColor.addEventListener("click",() => { draftColor = undefined; render() })
+    colorControls.append(swatches,picker,clearColor)
+    previewPanel.append(previewTitle, sizeControls, colorControls, preview, dropHint)
     content.append(previewPanel, inspector)
     const footer = document.createElement("div")
     footer.className = "pin-layout-footer"
@@ -110,6 +141,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     reset.className = "pin-layout-reset"
     const apply = button("Appliquer", () => {
         root.draftPinLayout = draft
+        root.draftSymbolColor = draftColor
         root.draftSymbolSize = draftSize === undefined ? undefined : { width:currentDef.gridWidth,height:currentDef.gridHeight }
         root.editor.setDirty("custom component appearance")
         root.editor.editTools.undoMgr.takeSnapshot()
@@ -389,8 +421,11 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     function render() {
         const def = currentDef = makeDef(draft)
         const pins = def.externalPins()
-        status.textContent = draft === undefined && draftSize === undefined ? "Automatique" : "Personnalisé"
-        status.classList.toggle("is-custom", draft !== undefined || draftSize !== undefined)
+        status.textContent = draft === undefined && draftSize === undefined && draftColor === undefined ? "Automatique" : "Personnalisé"
+        status.classList.toggle("is-custom", draft !== undefined || draftSize !== undefined || draftColor !== undefined)
+        for (const [color,swatch] of colors) swatch.setAttribute("aria-pressed",String(draftColor === color))
+        picker.value = draftColor ?? "#3b82f6"
+        clearColor.disabled = draftColor === undefined
         const minimum = def.minimumSize()
         widthInput.min = String(minimum.width)
         heightInput.min = String(minimum.height)
@@ -499,6 +534,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
             shape("rect", { x, y, width: vertical ? 34 : w, height: vertical ? h : 34, rx: 5, class: "pin-drop-zone", "data-drop-side": side })
         }
         shape("rect", { x: -w / 2, y: -h / 2, width: w, height: h, rx: 5, fill: "var(--panel)", stroke: "var(--ink)", "stroke-width": 1.5 })
+        if (def.symbolColor !== undefined) shape("rect",{ x:-w/2,y:-h/2,width:w,height:h,rx:5,fill:def.symbolColor,"fill-opacity":symbolTintOpacity,"pointer-events":"none" })
         const measure = document.createElement("canvas").getContext("2d")
         const fit = fitSymbolCaption(def.caption,def.captionWidth(),(text,font) => {
             if (!measure) return text.length * font * .6

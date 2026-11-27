@@ -52,6 +52,7 @@ export function circuitSignature(circuit: CircuitShape, dependency: (id: string)
     const components = Object.fromEntries(Object.entries(circuit.components ?? {}).map(([id, repr]) => {
         const copy = { ...repr }
         delete copy.ref
+        if (typeof copy.type === "string" && copy.type.startsWith("custom-")) delete copy.colorOverride
         if (copy.type === "in" && copy.isConstant !== true) delete copy.val
         return [id, copy]
     }))

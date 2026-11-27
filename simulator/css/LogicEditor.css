@@ -1249,3 +1249,11 @@ svg text {
 .symbol-size-controls input { width:88px; background:var(--chrome); color:var(--ink); border:1px solid var(--edge); border-radius:6px; padding:6px 8px; font:inherit; }
 .symbol-resize-handle { fill:var(--panel); stroke:var(--accent); stroke-width:1.5; touch-action:none; }
 .symbol-resize-handle:hover { fill:var(--accent); }
+
+.symbol-color-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 14px; border-bottom:1px solid var(--edge); }
+.symbol-color-controls > span { font-size:11px; color:var(--muted,var(--ink)); }
+.symbol-color-swatches { display:flex; align-items:center; flex-wrap:wrap; gap:5px; }
+.pin-layout-dialog .symbol-color-swatch { width:23px; height:23px; padding:0; background:var(--swatch); border:2px solid var(--panel); box-shadow:0 0 0 1px var(--edge); border-radius:6px; }
+.pin-layout-dialog .symbol-color-swatch:not(:disabled):hover { background:var(--swatch); transform:scale(1.08); }
+.pin-layout-dialog .symbol-color-swatch[aria-pressed=true] { box-shadow:0 0 0 2px var(--accent); }
+.symbol-color-controls input[type=color] { width:32px; height:27px; padding:2px; border-radius:5px; border:1px solid var(--edge); background:var(--chrome); cursor:pointer; }

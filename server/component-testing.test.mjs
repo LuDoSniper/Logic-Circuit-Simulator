@@ -107,3 +107,17 @@ test("symbol size snaps to integer grid and respects pin minimum", () => {
     assert.equal(SymbolSize.decode({width:8,height:8})._tag,"Right")
     assert.equal(fitSymbolCaption("Very long title",12,(s,f)=>s.length*f/2).text,"Ve…")
 })
+
+import { SymbolColor, resolveSymbolColor } from "../simulator/src/ExternalPinLayout.ts"
+test("symbol color validates and distinguishes inheritance, neutral and explicit override", () => {
+    assert.equal(SymbolColor.decode("#FF0088").right,"#ff0088")
+    assert.equal(SymbolColor.decode("red")._tag,"Left")
+    assert.equal(resolveSymbolColor("#ff0088",undefined),"#ff0088")
+    assert.equal(resolveSymbolColor("#ff0088",null),undefined)
+    assert.equal(resolveSymbolColor("#ff0088","#123456"),"#123456")
+})
+test("instance colors do not invalidate functional test results", () => {
+    const circuit={components:{A:{type:"custom-adder"}},wires:[]}
+    const colored={components:{A:{type:"custom-adder",colorOverride:"#123456"}},wires:[]}
+    assert.equal(circuitSignature(circuit,()=>undefined),circuitSignature(colored,()=>undefined))
+})

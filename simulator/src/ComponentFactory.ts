@@ -700,6 +700,7 @@ export class ComponentFactory {
             circuit: { components: circuit.components, wires: circuit.wires },
             ...(defRoot.draftPinLayout === undefined ? {} : { pinLayout: defRoot.draftPinLayout.filter(pin => Object.prototype.hasOwnProperty.call(circuit.components, pin.id)) }),
             ...(defRoot.draftSymbolSize === undefined ? {} : { symbolSize: defRoot.draftSymbolSize }),
+            ...(defRoot.draftSymbolColor === undefined ? {} : { symbolColor: defRoot.draftSymbolColor }),
             documentation: structuredClone(defRoot.draftDocumentation),
         })
 

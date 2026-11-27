@@ -7,7 +7,7 @@ import { NodeMapping } from './NodeManager'
 import { TestSuite, TestSuiteRepr } from './TestSuite'
 import { type Component } from "./components/Component"
 import type { CustomComponent, CustomComponentDefRepr } from './components/CustomComponent'
-import { ExternalPinLayout, SymbolSize } from './ExternalPinLayout'
+import { ExternalPinLayout, SymbolSize, SymbolColor } from './ExternalPinLayout'
 import { ComponentDocumentation } from './CustomComponentTesting'
 import { DrawableParent } from './components/Drawable'
 import { Wire } from "./components/Wire"
@@ -42,6 +42,7 @@ type Scratch = {
     id: string,
     pinLayout?: ExternalPinLayout | null,
     symbolSize?: SymbolSize | null,
+    symbolColor?: string | null,
     documentation?: ComponentDocumentation,
 
 } & ComponentAndWires
@@ -253,6 +254,12 @@ class _Serialization {
                     if (size !== undefined) customComp.draftSymbolSize = size
                 }
                 delete scratch.symbolSize
+                if (scratch.symbolColor === null) customComp.draftSymbolColor = undefined
+                else if (scratch.symbolColor !== undefined) {
+                    const color = validateJson(scratch.symbolColor, SymbolColor, "scratch.symbolColor")
+                    if (color !== undefined) customComp.draftSymbolColor = color
+                }
+                delete scratch.symbolColor
                 if (scratch.documentation !== undefined) {
                     const doc = validateJson(scratch.documentation, ComponentDocumentation, "scratch.documentation")
                     if (doc !== undefined) customComp.draftDocumentation = doc
@@ -397,6 +404,7 @@ class _Serialization {
                 id: customComp.ref ?? "n/a",
                 pinLayout: customComp.draftPinLayout ?? null,
                 symbolSize: customComp.draftSymbolSize ?? null,
+                symbolColor: customComp.draftSymbolColor ?? null,
                 documentation: customComp.draftDocumentation,
             }
             this.buildReprsInto(scratch, editorRoot.components.all(), editorRoot.linkMgr.wires, editorRoot.testSuites.suites)
@@ -550,6 +558,7 @@ class _Serialization {
             scratchparts.push(`id: ${stringifySmart(scratch.id)}`)
             stringifyCompactReprTo(scratchparts, { ...scratch }, "pinLayout")
             stringifyCompactReprTo(scratchparts, { ...scratch }, "symbolSize")
+            stringifyCompactReprTo(scratchparts, { ...scratch }, "symbolColor")
             stringifyCompactReprTo(scratchparts, { ...scratch }, "documentation")
             stringifyComponentWiresTestsReprsTo(scratchparts, { ...scratch }, 2, false)
             parts.push(`scratch: {\n    ` + scratchparts.join(",\n    ") + "\n  }")

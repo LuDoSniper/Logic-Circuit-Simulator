@@ -97,3 +97,13 @@ test("expanded groups allow scalar wiring but compact ports enforce bus widths",
     assert.equal(busConnectionMode(compact,undefined,false,true,true),"width")
     assert.equal(busConnectionMode(compact,expanded,false,true,false),"occupied")
 })
+
+import { SymbolSize, minimumSymbolSize, snapSymbolSize, fitSymbolCaption } from "../simulator/src/ExternalPinLayout.ts"
+test("symbol size snaps to integer grid and respects pin minimum", () => {
+    const min=minimumSymbolSize(1,3)
+    assert.deepEqual(min,{width:4,height:7})
+    assert.deepEqual(snapSymbolSize({width:9.4,height:2},min),{width:9,height:7})
+    assert.equal(SymbolSize.decode({width:6.5,height:8})._tag,"Left")
+    assert.equal(SymbolSize.decode({width:8,height:8})._tag,"Right")
+    assert.equal(fitSymbolCaption("Very long title",12,(s,f)=>s.length*f/2).text,"Ve…")
+})

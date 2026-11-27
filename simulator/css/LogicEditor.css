@@ -1243,3 +1243,9 @@ svg text {
 .dark .component-test-result[data-result=error] { color:#fbbf24; }
 .dark .component-test-result[data-result=pass] { color:#54d4a7; }
 @media(max-width:600px) { .component-test-counts { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+
+.symbol-size-controls { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; padding:10px 14px; border-bottom:1px solid var(--edge); }
+.symbol-size-controls label { display:grid; gap:3px; font-size:11px; color:var(--muted,var(--ink)); }
+.symbol-size-controls input { width:88px; background:var(--chrome); color:var(--ink); border:1px solid var(--edge); border-radius:6px; padding:6px 8px; font:inherit; }
+.symbol-resize-handle { fill:var(--panel); stroke:var(--accent); stroke-width:1.5; touch-action:none; }
+.symbol-resize-handle:hover { fill:var(--accent); }

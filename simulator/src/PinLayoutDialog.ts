@@ -1,5 +1,5 @@
 import type { CustomComponent, CustomComponentDef } from "./components/CustomComponent"
-import type { ExternalPinLayout } from "./ExternalPinLayout"
+import { type ExternalPinLayout, type SymbolSize, snapSymbolSize, fitSymbolCaption } from "./ExternalPinLayout"
 import { Serialization } from "./Serialization"
 import type { Orientation } from "./utils"
 import { useCompact } from "./drawutils"
@@ -12,11 +12,13 @@ type PinDrag = { id: string, pointer: number, x: number, y: number, label: strin
 export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, makeDefinition: typeof CustomComponentDef, onClose: () => void) {
     const circuit = Serialization.buildComponentsAndWireObject([...root.components.all()], [], undefined)
     let draft = root.draftPinLayout?.map(pin => ({ ...pin }))
+    let draftSize = root.draftSymbolSize === undefined ? undefined : { ...root.draftSymbolSize }
     const makeDef = (layout: ExternalPinLayout | undefined) => new makeDefinition({
         id: root.customDef.customId,
         caption: root.customDef.caption,
         circuit: { components: { ...circuit.components }, wires: circuit.wires },
         ...(layout === undefined ? {} : { pinLayout: layout }),
+        ...(draftSize === undefined ? {} : { symbolSize: draftSize }),
     })
 
     const dialog = document.createElement("dialog")
@@ -66,7 +68,33 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     dropHint.className = "pin-layout-drop-hint"
     dropHint.setAttribute("aria-live", "polite")
     dropHint.textContent = "Attrapez une broche pour la déplacer."
-    previewPanel.append(previewTitle, preview, dropHint)
+    const sizeControls = document.createElement("div")
+    sizeControls.className = "symbol-size-controls"
+    const sizeInputs = (label: string, axis: "width" | "height") => {
+        const field = document.createElement("label")
+        const caption = document.createElement("span")
+        caption.textContent = label
+        const input = document.createElement("input")
+        input.type = "number"
+        input.step = "1"
+        input.max = "4096"
+        input.addEventListener("change", () => {
+            const value = input.valueAsNumber
+            if (Number.isFinite(value)) setSize({ width:currentDef.gridWidth,height:currentDef.gridHeight,[axis]:value })
+            else render()
+        })
+        field.append(caption,input)
+        sizeControls.append(field)
+        return input
+    }
+    const widthInput = sizeInputs("Largeur (grille)","width")
+    const heightInput = sizeInputs("Hauteur (grille)","height")
+    const automaticSize = document.createElement("button")
+    automaticSize.type = "button"
+    automaticSize.textContent = "Taille automatique"
+    automaticSize.addEventListener("click",() => { draftSize = undefined; render() })
+    sizeControls.append(automaticSize)
+    previewPanel.append(previewTitle, sizeControls, preview, dropHint)
     content.append(previewPanel, inspector)
     const footer = document.createElement("div")
     footer.className = "pin-layout-footer"
@@ -82,6 +110,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     reset.className = "pin-layout-reset"
     const apply = button("Appliquer", () => {
         root.draftPinLayout = draft
+        root.draftSymbolSize = draftSize === undefined ? undefined : { width:currentDef.gridWidth,height:currentDef.gridHeight }
         root.editor.setDirty("custom component appearance")
         root.editor.editTools.undoMgr.takeSnapshot()
         dialog.close()
@@ -94,6 +123,11 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     dialog.append(header, content, footer, ghost)
     host.append(dialog)
     let drag: PinDrag | undefined
+    let resize: { pointer:number, x:number,y:number,width:number,height:number, dx:number,dy:number, matrix:DOMMatrix, viewBox:string, original:SymbolSize | undefined } | undefined
+    function setSize(size: SymbolSize) {
+        draftSize = snapSymbolSize(size,currentDef.minimumSize())
+        render()
+    }
     let currentDef = makeDef(draft)
     let allEntries: ExternalPinLayout = []
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -223,7 +257,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     }
 
     function startDrag(e: PointerEvent, id: string, label: string) {
-        if (e.button !== 0 || !e.isPrimary || drag !== undefined) return
+        if (e.button !== 0 || !e.isPrimary || drag !== undefined || resize !== undefined) return
         e.preventDefault()
         stopMotion()
         for (const row of groups.querySelectorAll<HTMLElement>("[data-pin-id]")) {
@@ -296,6 +330,12 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     }
 
     dialog.addEventListener("pointermove", e => {
+        if (resize?.pointer === e.pointerId) {
+            const point = new DOMPoint(e.clientX,e.clientY).matrixTransform(resize.matrix)
+            const next = snapSymbolSize({ width: resize.width + (point.x-resize.x)*resize.dx/6, height: resize.height + (point.y-resize.y)*resize.dy/6 },currentDef.minimumSize())
+            if (next.width !== currentDef.gridWidth || next.height !== currentDef.gridHeight) setSize(next)
+            return
+        }
         if (drag === undefined || drag.pointer !== e.pointerId) return
         if (!drag.started && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) return
         if (!drag.started) {
@@ -316,6 +356,14 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     })
 
     function finishDrag(e: PointerEvent, commit: boolean) {
+        if (resize?.pointer === e.pointerId) {
+            const previous = resize
+            resize = undefined
+            if (!commit) draftSize = previous.original
+            if (dialog.hasPointerCapture(e.pointerId)) dialog.releasePointerCapture(e.pointerId)
+            render()
+            return
+        }
         if (drag === undefined || drag.pointer !== e.pointerId) return
         const previous = drag
         const target = commit && previous.started ? findTarget(e.clientX, e.clientY, previous.id) : undefined
@@ -341,8 +389,15 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
     function render() {
         const def = currentDef = makeDef(draft)
         const pins = def.externalPins()
-        status.textContent = draft === undefined ? "Automatique" : "Personnalisé"
-        status.classList.toggle("is-custom", draft !== undefined)
+        status.textContent = draft === undefined && draftSize === undefined ? "Automatique" : "Personnalisé"
+        status.classList.toggle("is-custom", draft !== undefined || draftSize !== undefined)
+        const minimum = def.minimumSize()
+        widthInput.min = String(minimum.width)
+        heightInput.min = String(minimum.height)
+        widthInput.value = String(def.gridWidth)
+        heightInput.value = String(def.gridHeight)
+        automaticSize.disabled = draftSize === undefined
+        dropHint.textContent = "Taille : " + def.gridWidth + " × " + def.gridHeight + " cases. Glissez les poignées pour redimensionner."
         allEntries = pins.map(pin => ({ id: pin.id, side: pin.orient, ...(pin.bus ? { bus: true } : {}) }))
         groups.replaceChildren()
         for (const side of sides) {
@@ -426,7 +481,7 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
         const svg = document.createElementNS(ns, "svg")
         const w = def.gridWidth * 12
         const h = def.gridHeight * 12
-        svg.setAttribute("viewBox", [-w / 2 - 110, -h / 2 - 60, w + 220, h + 120].join(" "))
+        svg.setAttribute("viewBox", resize?.viewBox ?? [-w / 2 - 110, -h / 2 - 60, w + 220, h + 120].join(" "))
         svg.setAttribute("role", "group")
         svg.setAttribute("aria-label", "Aperçu interactif des broches externes")
         function shape(tag: string, attrs: Record<string, string | number>, text?: string, parent: SVGElement = svg) {
@@ -444,7 +499,13 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
             shape("rect", { x, y, width: vertical ? 34 : w, height: vertical ? h : 34, rx: 5, class: "pin-drop-zone", "data-drop-side": side })
         }
         shape("rect", { x: -w / 2, y: -h / 2, width: w, height: h, rx: 5, fill: "var(--panel)", stroke: "var(--ink)", "stroke-width": 1.5 })
-        shape("text", { x: 0, y: 0, "text-anchor": "middle", "dominant-baseline": "middle", fill: "currentColor", "font-size": 14, "font-weight": 600 }, def.caption)
+        const measure = document.createElement("canvas").getContext("2d")
+        const fit = fitSymbolCaption(def.caption,def.captionWidth(),(text,font) => {
+            if (!measure) return text.length * font * .6
+            measure.font = "bold " + font + "px sans-serif"
+            return measure.measureText(text).width
+        })
+        shape("text", { x: 0, y: 0, "text-anchor": "middle", "dominant-baseline": "middle", fill: "currentColor", "font-size": fit.font*1.2, "font-weight": 700 }, fit.text)
         for (const { pin, x, y } of def.externalPinPositions()) {
             const px = x * 12, py = y * 12
             const dx = pin.orient === "w" ? -1 : pin.orient === "e" ? 1 : 0
@@ -469,6 +530,23 @@ export function openPinLayoutDialog(root: CustomComponent, host: HTMLElement, ma
             const attrs: Record<string, string | number> = { x: tx, y: ty, fill: "currentColor", "font-size": 11, "dominant-baseline": "middle", "text-anchor": dx < 0 ? "end" : dx > 0 ? "start" : dy < 0 ? "start" : "end" }
             if (dy !== 0) attrs.transform = "rotate(-90 " + tx + " " + ty + ")"
             shape("text", attrs, label, group)
+        }
+        for (const [dx,dy] of [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]]) {
+            const handle = shape("rect",{x:dx*w/2-5,y:dy*h/2-5,width:10,height:10,rx:2,class:"symbol-resize-handle"})
+            handle.style.cursor = dx === 0 ? "ns-resize" : dy === 0 ? "ew-resize" : dx === dy ? "nwse-resize" : "nesw-resize"
+            shape("title",{},"Redimensionner sur la grille",handle)
+            handle.addEventListener("pointerdown",e => {
+                if (e.button !== 0 || !e.isPrimary || drag || resize) return
+                const transform = svg.getScreenCTM()
+                if (!transform) return
+                e.preventDefault()
+                e.stopPropagation()
+                stopMotion()
+                const matrix = transform.inverse()
+                const point = new DOMPoint(e.clientX,e.clientY).matrixTransform(matrix)
+                resize = {pointer:e.pointerId,x:point.x,y:point.y,width:def.gridWidth,height:def.gridHeight,dx,dy,matrix,viewBox:svg.getAttribute("viewBox")!,original:draftSize}
+                dialog.setPointerCapture(e.pointerId)
+            })
         }
         preview.append(svg)
     }

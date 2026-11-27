@@ -1,6 +1,6 @@
 import * as t from "io-ts"
 import { ComponentDocumentation, circuitSignature, defaultDocumentation } from "../CustomComponentTesting"
-import { ExternalPinLayout } from "../ExternalPinLayout"
+import { ExternalPinLayout, SymbolSize, minimumSymbolSize, snapSymbolSize, fitSymbolCaption } from "../ExternalPinLayout"
 import { ComponentFactory } from "../ComponentFactory"
 import { ComponentList } from "../ComponentList"
 import { LogicEditor } from "../LogicEditor"
@@ -46,7 +46,7 @@ export const CustomComponentDefRepr = t.intersection([t.type({
         components: typeOrUndefined(t.record(t.string, t.record(t.string, t.unknown))),
         wires: typeOrUndefined(t.array(Wire.Repr)),
     }),
-}), t.partial({ pinLayout: ExternalPinLayout, documentation: ComponentDocumentation })])
+}), t.partial({ pinLayout: ExternalPinLayout, symbolSize: SymbolSize, documentation: ComponentDocumentation })])
 
 export type CustomComponentDefRepr = t.TypeOf<typeof CustomComponentDefRepr>
 type CircuitRepr = CustomComponentDefRepr["circuit"]
@@ -58,6 +58,7 @@ export class CustomComponentDef {
     public readonly circuit: CircuitRepr
     public readonly insOuts: CustomComponentNodeSpec[]
     public readonly pinLayout: ExternalPinLayout | undefined
+    public readonly symbolSize: SymbolSize | undefined
     public readonly documentation: ComponentDocumentation
     public readonly numInputs: number
     public readonly numOutputs: number
@@ -72,6 +73,7 @@ export class CustomComponentDef {
             caption: this._caption,
             circuit: this.circuit,
             ...(this.pinLayout === undefined ? {} : { pinLayout: this.pinLayout }),
+            ...(this.symbolSize === undefined ? {} : { symbolSize: this.symbolSize }),
             documentation: this.documentation,
         }
     }
@@ -94,6 +96,7 @@ export class CustomComponentDef {
         this._caption = data.caption
         this.circuit = data.circuit
         this.pinLayout = data.pinLayout
+        this.symbolSize = data.symbolSize
         this.documentation = data.documentation ?? defaultDocumentation()
 
         this.insOuts = []
@@ -168,12 +171,22 @@ export class CustomComponentDef {
         })
     }
 
+    public minimumSize(): SymbolSize {
+        return minimumSymbolSize(Math.max(this.numBySide.s,this.numBySide.n),Math.max(this.numBySide.e,this.numBySide.w))
+    }
+
     private recalcSize() {
-        const spacing = 2
-        const margin = 1.5
-        const minSize = 1 * this._caption.length + 2
-        this.gridWidth = Math.ceil(Math.max(minSize, (Math.max(this.numBySide.s, this.numBySide.n) - 1) * spacing + 2 * margin))
-        this.gridHeight = Math.ceil(Math.max(this.externalPins().some(p => p.bus) ? 6 : minSize, (Math.max(this.numBySide.e, this.numBySide.w) - 1) * spacing + 2 * margin))
+        const minimum = this.minimumSize()
+        const automatic = { width: Math.max(6,this._caption.length + 2), height: 6 }
+        const size = snapSymbolSize(this.symbolSize ?? automatic,minimum)
+        this.gridWidth = size.width
+        this.gridHeight = size.height
+    }
+
+    public captionWidth(gridWidth = this.gridWidth) {
+        const pins = this.externalPins()
+        const reserve = (side: Orientation) => Math.max(0,...pins.filter(p => p.orient === side).map(p => (p.name.length + (p.bus ? 5 : 0)) * 6 + 6))
+        return Math.max(1,gridWidth * 10 - reserve("w") - reserve("e") - 12)
     }
 
     // ComponentMaker interface
@@ -317,6 +330,7 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
     private _customDef: CustomComponentDef
     public get customDef() { return this._customDef }
     public draftPinLayout: ExternalPinLayout | undefined
+    public draftSymbolSize: SymbolSize | undefined
     public draftDocumentation: ComponentDocumentation
     public readonly numInputs: number
     public readonly numOutputs: number
@@ -351,6 +365,7 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
         super(parent, customDef.toStandardDef().from(parent), saved)
         this._customDef = customDef
         this.draftPinLayout = customDef.pinLayout?.map(pin => ({ ...pin }))
+        this.draftSymbolSize = customDef.symbolSize === undefined ? undefined : { ...customDef.symbolSize }
         this.draftDocumentation = structuredClone(customDef.documentation)
         this.numInputs = this.inputs._all.length
         this.numOutputs = this.outputs._all.length
@@ -497,10 +512,14 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
 
     protected override doDraw(g: GraphicsRendering, ctx: DrawContext): void {
         super.doDrawDefault(g, ctx, () => {
-            g.font = `bold 18px sans-serif`
+            const fit = fitSymbolCaption(this.customDef.caption,this.customDef.captionWidth(),(text,font) => {
+                g.font = "bold " + font + "px sans-serif"
+                return g.measureText(text).width
+            })
+            g.font = "bold " + fit.font + "px sans-serif"
             g.fillStyle = COLOR_COMPONENT_BORDER
             g.textAlign = "center"
-            fillTextVAlign(g, TextVAlign.middle, this.customDef.caption, this.posX, this.posY)
+            fillTextVAlign(g, TextVAlign.middle, fit.text, this.posX, this.posY)
         })
     }
 

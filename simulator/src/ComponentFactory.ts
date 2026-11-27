@@ -699,6 +699,7 @@ export class ComponentFactory {
             caption: def.caption,
             circuit: { components: circuit.components, wires: circuit.wires },
             ...(defRoot.draftPinLayout === undefined ? {} : { pinLayout: defRoot.draftPinLayout.filter(pin => Object.prototype.hasOwnProperty.call(circuit.components, pin.id)) }),
+            ...(defRoot.draftSymbolSize === undefined ? {} : { symbolSize: defRoot.draftSymbolSize }),
             documentation: structuredClone(defRoot.draftDocumentation),
         })
 

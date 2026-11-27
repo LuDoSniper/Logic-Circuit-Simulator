@@ -1,8 +1,10 @@
 import * as t from "io-ts"
+import { rectangleResizeEdge, resizeRectangle, type CircuitPoint, type ResizeEdge } from "../CircuitGeometry"
+import type { PointerDragEvent } from "../UIEventManager"
 import { COLOR_COMPONENT_BORDER, COLOR_RECTANGLE_BACKGROUND, COLOR_RECTANGLE_BORDER, DrawZIndex, FONT_LABEL_DEFAULT, GRID_STEP, TextVAlign, fillTextVAlign } from "../drawutils"
 import { span, style, title } from "../htmlgen"
 import { S } from "../strings"
-import { InteractionResult, typeOrUndefined } from "../utils"
+import { InteractionResult, Mode, typeOrUndefined } from "../utils"
 import { ComponentBase, Repr, defineComponent } from "./Component"
 import { DrawContext, Drawable, DrawableParent, DrawableWithPosition, GraphicsRendering, MenuData, MenuItems } from "./Drawable"
 
@@ -67,6 +69,9 @@ export type RectangleRepr = Repr<typeof RectangleDef>
 
 export class Rectangle extends ComponentBase<RectangleRepr> {
 
+    private _resize: { edge: ResizeEdge, startX: number, startY: number, original: CircuitPoint } | undefined
+    public get isResizing() { return this._resize !== undefined }
+
     private _w: number
     private _h: number
     private _color: RectangleColor
@@ -106,6 +111,66 @@ export class Rectangle extends ComponentBase<RectangleRepr> {
             captionInside: this._captionInside === RectangleDef.aults.captionInside ? undefined : this._captionInside,
             font: this._font === RectangleDef.aults.font ? undefined : this._font,
         }
+    }
+
+    private resizeEdgeAt(x: number, y: number) {
+        if (this.parent.mode < Mode.DESIGN || this.lockPos || this.parent.ifEditing === undefined) return undefined
+        return rectangleResizeEdge(this,x,y,5/this.parent.editor.userDrawingScale)
+    }
+
+    public override isOver(x: number, y: number) {
+        return this.resizeEdgeAt(x,y) !== undefined || super.isOver(x,y)
+    }
+
+    public override cursorWhenMouseover(e?: PointerEvent) {
+        const edge = this._resize?.edge ?? (e && !e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey ? this.resizeEdgeAt(...this.parent.editor.offsetXY(e)) : undefined)
+        if (edge) {
+            const [dx,dy] = edge
+            return dx === 0 ? "ns-resize" : dy === 0 ? "ew-resize" : dx === dy ? "nwse-resize" : "nesw-resize"
+        }
+        return super.cursorWhenMouseover(e)
+    }
+
+    public override pointerDown(e: PointerEvent) {
+        if (e.button === 0 && !e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey &&
+            this.parent.editor.eventMgr.currentComponentUnderPointer === this) {
+            const [x,y] = this.parent.editor.offsetXY(e)
+            const edge = this.resizeEdgeAt(x,y)
+            if (edge) {
+                this._resize = {edge,startX:x,startY:y,original:{posX:this.posX,posY:this.posY,width:this._w,height:this._h}}
+                return { wantsDragEvents:true }
+            }
+        }
+        return super.pointerDown(e)
+    }
+
+    public override pointerDragged(e: PointerDragEvent) {
+        const resize = this._resize
+        if (!resize) { super.pointerDragged(e); return }
+        const [x,y] = this.parent.editor.offsetXY(e)
+        const next = resizeRectangle(resize.original,resize.edge,x-resize.startX,y-resize.startY,GRID_STEP,2*GRID_STEP)
+        this.applyResize(next)
+    }
+
+    private applyResize(next: CircuitPoint) {
+        if (next.width !== this._w || next.height !== this._h) this.doSetDimensions(next.width,next.height)
+        if (next.posX !== this.posX || next.posY !== this.posY) this.doSetPosition(next.posX,next.posY)
+    }
+
+    protected override positionChanged(delta: [number,number]) {
+        // Resizing shifts the frame centre, not the contents or anchored drawables.
+        if (!this._resize) super.positionChanged(delta)
+    }
+
+    public override pointerUp(e: PointerEvent): InteractionResult {
+        const resize = this._resize
+        if (!resize) return super.pointerUp(e)
+        if (e.type === "pointercancel") this.applyResize(resize.original)
+        const original = resize.original
+        const changed = this._w !== original.width || this._h !== original.height || this.posX !== original.posX || this.posY !== original.posY
+        this._resize = undefined
+        if (changed) this.parent.ifEditing?.setDirty("group resized")
+        return InteractionResult.fromBoolean(changed)
     }
 
     public override canRotate() {
@@ -417,7 +482,6 @@ export class Rectangle extends ComponentBase<RectangleRepr> {
     }
 
     public override pointerDoubleClicked(__e: PointerEvent): InteractionResult {
-        // TODO: implement dragging for resizing the rectangle
         // don't call super, which would rotate the rectangle, this is useless here
         void this.runSetSizeDialog(this.makeCurrentSizeString())
         return InteractionResult.NoChange

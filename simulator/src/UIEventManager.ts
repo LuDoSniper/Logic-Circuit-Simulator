@@ -6,6 +6,7 @@ import { Drawable, DrawableWithDraggablePosition, DrawableWithPosition, MenuData
 import { Node, NodeBase } from "./components/Node"
 import { Waypoint, Wire } from './components/Wire'
 import { Probe } from "./components/Probe"
+import { Rectangle } from "./components/Rectangle"
 import { distSquared, DrawZIndex, GRID_STEP, setColorPointerOverIsDanger } from "./drawutils"
 import { applyModifiersTo, button, cls, emptyMod, li, Modifier, ModifierObject, mods, span, type } from './htmlgen'
 import { IconName, makeIcon } from './images'
@@ -871,7 +872,8 @@ export class UIEventManager {
                 // pointer down on component
                 const { wantsDragEvents } = this._currentHandlers.pointerDownOn(this._currentComponentUnderPointer, e)
                 if (wantsDragEvents) {
-                    const selectedComps = this.currentSelection === undefined ? [] : [...this.currentSelection.previouslySelectedElements]
+                    const resizing = this._currentComponentUnderPointer instanceof Rectangle && this._currentComponentUnderPointer.isResizing
+                    const selectedComps = resizing || this.currentSelection === undefined ? [] : [...this.currentSelection.previouslySelectedElements]
                     for (const comp of selectedComps) {
                         if (comp !== this._currentComponentUnderPointer) {
                             this._currentHandlers.pointerDownOn(comp, e)
@@ -881,7 +883,7 @@ export class UIEventManager {
                         mainComp: this._currentComponentUnderPointer,
                         selectionComps: selectedComps,
                         firedPointerDraggedAlready: false,
-                        fireClickedOnFinish: true,
+                        fireClickedOnFinish: !resizing,
                         initialXY: xy,
                         triggeredContextMenu: false,
                     }

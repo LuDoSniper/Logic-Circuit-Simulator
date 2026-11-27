@@ -153,7 +153,7 @@ test("constant word editing validates width and preserves bit order", () => {
     assert.equal(parseConstantWord("",0),undefined)
 })
 
-import { translateWaypoint, circuitBounds, frameCircuit } from "../simulator/src/CircuitGeometry.ts"
+import { translateWaypoint, circuitBounds, frameCircuit, rectangleResizeEdge, resizeRectangle } from "../simulator/src/CircuitGeometry.ts"
 test("clipboard offsets preserve waypoint options and translate all coordinates", () => {
     const points = [[100,200],[120,220,"n"],[140,240,"e","component"],[160,260,"w",null,{lockPos:true}]]
     const translated = points.map(p=>translateWaypoint(p,[-300,500]))
@@ -188,4 +188,16 @@ test("pretty serialization preserves null and supports objects with toJSON", () 
     assert.equal(applyOptionalToJSON(undefined),undefined)
     assert.equal(applyOptionalToJSON({toJSON:()=>null}),null)
     assert.deepEqual(applyOptionalToJSON({colorOverride:null}),{colorOverride:null})
+})
+
+test("group resize hit areas and fixed opposite edges", () => {
+    const rect = {posX:100,posY:100,width:80,height:60}
+    assert.deepEqual(rectangleResizeEdge(rect,140,100,5),[1,0])
+    assert.deepEqual(rectangleResizeEdge(rect,59,69,5),[-1,-1])
+    assert.equal(rectangleResizeEdge(rect,100,100,5),undefined)
+    assert.equal(rectangleResizeEdge(rect,150,100,5),undefined)
+    assert.deepEqual(resizeRectangle(rect,[1,0],27,50,10,20),{posX:115,posY:100,width:110,height:60})
+    assert.deepEqual(resizeRectangle(rect,[-1,-1],-20,-10,10,20),{posX:90,posY:95,width:100,height:70})
+    assert.deepEqual(resizeRectangle(rect,[1,0],-100,0,10,20),{posX:70,posY:100,width:20,height:60})
+    assert.deepEqual(rect,{posX:100,posY:100,width:80,height:60})
 })

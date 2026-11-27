@@ -33,3 +33,24 @@ export function frameCircuit(bounds: CircuitBounds, width: number, height: numbe
     const scale = nextZoom/100
     return { zoom:nextZoom, x:width/(2*scale)-(bounds.left+bounds.right)/2, y:height/(2*scale)-(bounds.top+bounds.bottom)/2 }
 }
+
+export type ResizeEdge = readonly [dx: -1 | 0 | 1, dy: -1 | 0 | 1]
+
+/** Hit test in world coordinates; tolerance is derived from screen zoom. */
+export function rectangleResizeEdge(rect: CircuitPoint, x: number, y: number, tolerance: number): ResizeEdge | undefined {
+    const left = rect.posX - rect.width / 2, right = rect.posX + rect.width / 2
+    const top = rect.posY - rect.height / 2, bottom = rect.posY + rect.height / 2
+    const tx = Math.min(tolerance,rect.width/3), ty = Math.min(tolerance,rect.height/3)
+    if (x < left-tx || x > right+tx || y < top-ty || y > bottom+ty) return undefined
+    const dx = Math.abs(x-left) <= tx ? -1 : Math.abs(x-right) <= tx ? 1 : 0
+    const dy = Math.abs(y-top) <= ty ? -1 : Math.abs(y-bottom) <= ty ? 1 : 0
+    return dx || dy ? [dx,dy] : undefined
+}
+
+/** Move the selected edges only; keep the opposite edges fixed. */
+export function resizeRectangle(rect: CircuitPoint, edge: ResizeEdge, deltaX: number, deltaY: number, step: number, minimum: number): CircuitPoint {
+    const [dx,dy] = edge
+    const width = dx === 0 ? rect.width : Math.max(Math.min(rect.width,minimum),rect.width + dx * Math.round(deltaX/step)*step)
+    const height = dy === 0 ? rect.height : Math.max(Math.min(rect.height,minimum),rect.height + dy * Math.round(deltaY/step)*step)
+    return { width,height,posX:rect.posX+dx*(width-rect.width)/2,posY:rect.posY+dy*(height-rect.height)/2 }
+}

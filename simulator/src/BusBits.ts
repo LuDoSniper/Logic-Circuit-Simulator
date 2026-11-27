@@ -20,3 +20,9 @@ export function busConnectionMode(source: BusPortShape | undefined, target: BusP
     if (!targetFree) return compact ? "occupied" : "scalar"
     return "bus"
 }
+
+/** Screen order of a rotated probe: LSB at top (vertical) or right (horizontal). */
+export function probeDisplayValues<T>(values: readonly T[], orientation: "e" | "s" | "w" | "n"): readonly T[] {
+    // The drawing transform reverses the local vertical axis for west and north.
+    return orientation === "w" || orientation === "n" ? [...values].reverse() : values
+}

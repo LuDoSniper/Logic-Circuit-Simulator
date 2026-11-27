@@ -1,4 +1,5 @@
 import * as t from "io-ts"
+import { probeDisplayValues } from "../BusBits"
 import { COLOR_BACKGROUND, COLOR_COMPONENT_BORDER, COMPONENT_OUTLINE_THICKNESS, GRID_STEP, INPUT_OUTPUT_DIAMETER, circle, colorForLogicValue, drawComponentName, drawValueText, drawValueTextCentered, useCompact } from "../drawutils"
 import { cls, div, style, tooltipContent } from "../htmlgen"
 import { S, getLang } from "../strings"
@@ -60,6 +61,7 @@ export class Probe extends ParametrizedComponentBase<ProbeRepr> {
         const bounds = this.bounds()
         const {left,top,width} = bounds
         const values = this.value
+        const displayValues = probeDisplayValues(values,this.orient)
         // Reuse the native I/O geometry and colours, with a terminal on each side.
         for (const node of this.allNodes()) this.drawWireLineTo(g,node,bounds)
         g.strokeStyle = ctx.isPointerOver ? ctx.borderColor : COLOR_COMPONENT_BORDER
@@ -76,10 +78,10 @@ export class Probe extends ParametrizedComponentBase<ProbeRepr> {
             g.fill(outline)
             const cellHeight = useCompact(this.numBits) ? GRID_STEP : GRID_STEP*2
             for (let i=0;i<this.numBits;i++) {
-                // Display MSB at the top, so the column reads like a binary word.
+                // Keep the bit order fixed in screen coordinates, regardless of rotation.
                 g.beginPath()
                 g.rect(left,top+i*cellHeight,width,cellHeight)
-                g.fillStyle = colorForLogicValue(values[this.numBits-1-i])
+                g.fillStyle = colorForLogicValue(displayValues[i])
                 g.fill()
                 g.lineWidth = 1
                 g.stroke()
@@ -94,7 +96,7 @@ export class Probe extends ParametrizedComponentBase<ProbeRepr> {
             } else {
                 const cellHeight = useCompact(this.numBits) ? GRID_STEP : GRID_STEP*2
                 for (let i=0;i<this.numBits;i++) {
-                    drawValueText(g,values[this.numBits-1-i],...frame.rotatePoint(this.posX,top+(i+.5)*cellHeight),{small:useCompact(this.numBits)})
+                    drawValueText(g,displayValues[i],...frame.rotatePoint(this.posX,top+(i+.5)*cellHeight),{small:useCompact(this.numBits)})
                 }
             }
         })

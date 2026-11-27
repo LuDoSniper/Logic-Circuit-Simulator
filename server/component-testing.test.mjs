@@ -41,7 +41,7 @@ test("portable overflow example has eight valid independent cases", () => {
     assert.equal(game.results,undefined)
 })
 
-import { resizeBus, isBusPinGroup, busConnectionMode } from "../simulator/src/BusBits.ts"
+import { resizeBus, isBusPinGroup, busConnectionMode, probeDisplayValues } from "../simulator/src/BusBits.ts"
 test("bus converter preserves LSB order, slices and extends", () => {
     assert.deepEqual(resizeBus([1,0,1,1],2,0,false,0),[1,0])
     assert.deepEqual(resizeBus([1,0,1,1],2,2,false,0),[1,1])
@@ -120,4 +120,16 @@ test("instance colors do not invalidate functional test results", () => {
     const circuit={components:{A:{type:"custom-adder"}},wires:[]}
     const colored={components:{A:{type:"custom-adder",colorOverride:"#123456"}},wires:[]}
     assert.equal(circuitSignature(circuit,()=>undefined),circuitSignature(colored,()=>undefined))
+})
+
+test("probe display keeps bit zero at the top or right in every orientation", () => {
+    const values = [0,1,2,3,4,5,6,7]
+    for (const orient of ["e","w","s","n"]) {
+        const local = probeDisplayValues(values,orient)
+        // For e/w, compare top-to-bottom; for s/n, compare left-to-right.
+        const screen = orient === "w" || orient === "s" ? [...local].reverse() : [...local]
+        assert.deepEqual(screen,orient === "e" || orient === "w" ? values : [...values].reverse())
+    }
+    assert.deepEqual(values,[0,1,2,3,4,5,6,7])
+    assert.deepEqual(probeDisplayValues([1],"n"),[1])
 })

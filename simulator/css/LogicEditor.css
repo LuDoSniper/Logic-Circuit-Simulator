@@ -1195,3 +1195,23 @@ svg text {
 
 #logicEditorRoot .pin-layout-row .pin-bus-toggle { flex:none; min-width:40px; font-weight:650; }
 #logicEditorRoot .pin-layout-row .pin-bus-toggle.active { color:var(--accent); border-color:var(--accent); background:var(--hover); }
+
+/* Independent context-menu flyouts: scrolling never clips child panels. */
+#logicEditorRoot .context-menu-panel {
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  transform: none;
+  transition: opacity .1s ease-out;
+}
+#logicEditorRoot .context-menu-panel:not(.show-menu) { display: none; }
+#logicEditorRoot .context-menu-panel .submenu-open > .menu-btn {
+  background: var(--selected, #2865e1);
+  color: var(--ink, #fff);
+  border-color: transparent;
+}
+#logicEditorRoot .context-menu-panel .menu-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}

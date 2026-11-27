@@ -6,7 +6,7 @@ import { Drawable, DrawableWithDraggablePosition, DrawableWithPosition, MenuData
 import { Node, NodeBase } from "./components/Node"
 import { Waypoint, Wire } from './components/Wire'
 import { distSquared, DrawZIndex, GRID_STEP, setColorPointerOverIsDanger } from "./drawutils"
-import { applyModifiersTo, button, cls, emptyMod, li, Modifier, ModifierObject, mods, span, type, ul } from './htmlgen'
+import { applyModifiersTo, button, cls, emptyMod, li, Modifier, ModifierObject, mods, span, type } from './htmlgen'
 import { IconName, makeIcon } from './images'
 import { LogicEditor, PointerAction, PoionterActionParams } from './LogicEditor'
 import { S } from './strings'
@@ -659,6 +659,11 @@ export class UIEventManager {
             const keyLower = e.key.toLowerCase()
             switch (keyLower) {
                 case "escape": {
+                    if (editor.html.mainContextMenu.classList.contains("show-menu")) {
+                        this._currentHandlers.hideContextMenuIfNeeded()
+                        e.preventDefault()
+                        return
+                    }
                     let handled: boolean
                     handled = editor.eventMgr.tryDeleteComponentsWhere(comp => comp.state === ComponentState.SPAWNING, false) > 0
                     if (!handled) {
@@ -1251,10 +1256,16 @@ type PanningSession = {
 class EditHandlers extends ToolHandlers {
 
     private _openedContextMenu: HTMLElement | null = null
+    private _submenuPanels: { panel: HTMLUListElement, trigger: HTMLElement }[] = []
+    private _menuHoverTimer: ReturnType<typeof setTimeout> | undefined
+    private _menuResizeCleanup: (() => void) | undefined
     private _currentPanningSession: PanningSession | undefined = undefined
 
     public constructor(editor: LogicEditor) {
         super(editor)
+        const main = editor.html.mainContextMenu
+        main.addEventListener("scroll", () => this.closeSubmenusFrom(0))
+        main.addEventListener("wheel", e => e.stopPropagation(), { passive: true })
     }
 
     public override pointerHoverOn(comp: Drawable) {
@@ -1526,16 +1537,61 @@ class EditHandlers extends ToolHandlers {
         }
     }
 
-    public override hideContextMenuIfNeeded(e?: PointerEvent) {
-        // if e is passed, only hide if the target is not the context menu
-        if (this._openedContextMenu !== null) {
-            const menuContainsTarget = e !== undefined && this._openedContextMenu.contains(e.composedPath()[0] as Element)
-            if (!menuContainsTarget) {
-                this._openedContextMenu.classList.remove('show-menu')
-                this._openedContextMenu.innerHTML = ""
-                this._openedContextMenu = null
-            }
+    private cancelMenuHover() {
+        if (this._menuHoverTimer !== undefined) {
+            clearTimeout(this._menuHoverTimer)
+            this._menuHoverTimer = undefined
         }
+    }
+
+    private closeSubmenusFrom(level: number) {
+        this.cancelMenuHover()
+        for (const entry of this._submenuPanels.splice(level)) {
+            entry.trigger.classList.remove("submenu-open")
+            entry.trigger.querySelector("button")?.setAttribute("aria-expanded", "false")
+            entry.panel.remove()
+        }
+    }
+
+    public override hideContextMenuIfNeeded(e?: PointerEvent) {
+        const main = this._openedContextMenu
+        if (main === null) return
+        const path = e?.composedPath() ?? []
+        if (path.includes(main) || this._submenuPanels.some(entry => path.includes(entry.panel))) return
+        this.closeSubmenusFrom(0)
+        main.classList.remove("show-menu")
+        main.replaceChildren()
+        this._openedContextMenu = null
+        this._menuResizeCleanup?.()
+        this._menuResizeCleanup = undefined
+    }
+
+    // Each menu is its own scrolling panel, not a descendant of the
+    // scrolling parent. This prevents CSS overflow from clipping flyouts.
+    private placeMenu(panel: HTMLElement, x: number, y: number, anchor?: DOMRect) {
+        const root = this.editor.html.rootDiv.getBoundingClientRect()
+        const margin = 5
+        const left = Math.max(margin, root.left + margin)
+        const top = Math.max(margin, root.top + margin)
+        const right = Math.max(left + 1, Math.min(window.innerWidth, root.right) - margin)
+        const bottom = Math.max(top + 1, Math.min(window.innerHeight, root.bottom) - margin)
+        panel.style.maxHeight = (bottom - top) + "px"
+        panel.style.maxWidth = (right - left) + "px"
+        panel.style.minWidth = Math.min(210, right - left) + "px"
+        const width = panel.offsetWidth
+        const height = panel.offsetHeight
+        if (anchor !== undefined) {
+            // Overlap the parent edge slightly so the pointer can cross
+            // into the child without falling into a dead zone.
+            const parent = anchor
+            const openRight = parent.right - 2
+            const openLeft = parent.left - width + 2
+            x = openRight + width <= right || openLeft < left && right - parent.right >= parent.left - left ? openRight : openLeft
+        }
+        x = Math.max(left, Math.min(x, right - width))
+        y = Math.max(top, Math.min(y, bottom - height))
+        panel.style.left = (x - root.left) + "px"
+        panel.style.top = (y - root.top) + "px"
     }
 
     private showContextMenu(menuData: MenuData | undefined, e: PointerEvent) {
@@ -1554,6 +1610,7 @@ class EditHandlers extends ToolHandlers {
 
         // console.log("building menu for %o", MenuData)
 
+        const buildItems = (data: MenuData, level: number): Modifier[] => {
         let hasContentJustifyingSeparator = false
 
         const defToElem = (item: MenuItem): Modifier => {
@@ -1588,68 +1645,61 @@ class EditHandlers extends ToolHandlers {
                         this.editor.editTools.undoMgr.takeSnapshot(result as Exclude<typeof result, void>)
                         this.editor.focus()
                     }))
-                    return li(cls("menu-item"), but).render()
+                    const row = li(cls("menu-item"), but).render()
+                    row.addEventListener("pointerenter", () => {
+                        this.cancelMenuHover()
+                        if (this._submenuPanels.length > level) {
+                            this._menuHoverTimer = setTimeout(() => this.closeSubmenusFrom(level), 180)
+                        }
+                    })
+                    return row
                 }
                 case "submenu": {
-                    return li(cls("menu-item submenu"),
-                        mkButton(item),
-                        ul(cls("menu"),
-                            ...item.items.map(defToElem)
-                        )
-                    ).render()
+                    const but = mkButton(item).render()
+                    but.setAttribute("aria-haspopup", "true")
+                    but.setAttribute("aria-expanded", "false")
+                    const row = li(cls("menu-item submenu"), but).render()
+                    const open = () => {
+                        this.cancelMenuHover()
+                        if (this._openedContextMenu === null || this._submenuPanels[level]?.trigger === row) return
+                        this.closeSubmenusFrom(level)
+                        const panel = document.createElement("ul")
+                        panel.className = "menu context-menu-panel show-menu"
+                        panel.style.zIndex = String(101 + level)
+                        applyModifiersTo(panel, buildItems(item.items, level + 1))
+                        this.editor.html.rootDiv.append(panel)
+                        this._submenuPanels.push({ panel, trigger: row })
+                        row.classList.add("submenu-open")
+                        but.setAttribute("aria-expanded", "true")
+                        const rect = row.getBoundingClientRect()
+                        const parentRect = row.parentElement!.getBoundingClientRect()
+                        this.placeMenu(panel, rect.right, rect.top, parentRect)
+                        panel.addEventListener("pointerenter", () => this.cancelMenuHover())
+                        panel.addEventListener("scroll", () => this.closeSubmenusFrom(level + 1))
+                        panel.addEventListener("wheel", ev => ev.stopPropagation(), { passive: true })
+                    }
+                    row.addEventListener("pointerenter", () => {
+                        this.cancelMenuHover()
+                        this._menuHoverTimer = setTimeout(open, 120)
+                    })
+                    but.addEventListener("click", open)
+                    return row
                 }
             }
         }
 
-        const items = menuData.map(defToElem)
+        return data.map(defToElem)
+        }
 
         const mainContextMenu = this.editor.html.mainContextMenu
-        applyModifiersTo(mainContextMenu, items)
-        mainContextMenu.classList.add("show-menu")
-
-        const menuParentRect = this.editor.html.rootDiv.getBoundingClientRect()
-        let menuTop = e.clientY - menuParentRect.top
-        let menuLeft = e.clientX - menuParentRect.left
-        mainContextMenu.style.top = `${menuTop}px`
-        mainContextMenu.style.left = `${menuLeft}px`
-
-        let needsScrollY = false
-        const menuRect = mainContextMenu.getBoundingClientRect()
-        const overflowRight = menuRect.right - window.innerWidth + 10
-        if (overflowRight > 0) {
-            menuLeft -= overflowRight
-
-            const minMenuLeft = Math.max(5, 5 - menuParentRect.left)
-            if (menuLeft < minMenuLeft) {
-                menuLeft = minMenuLeft
-            }
-            mainContextMenu.style.left = `${menuLeft}px`
-        }
-
-        const overflowBottom = menuRect.bottom - window.innerHeight
-        if (overflowBottom > 0) {
-            menuTop -= overflowBottom
-
-            const minMenuTop = Math.max(5, 5 - menuParentRect.top)
-            if (menuTop < minMenuTop) {
-                menuTop = minMenuTop
-                needsScrollY = true
-            }
-            mainContextMenu.style.top = `${menuTop}px`
-        }
-
-        // TODO this causes some weird behavior with submenus, to be fixed
-        if (needsScrollY) {
-            const menuViewportTop = menuParentRect.top + menuTop
-            const maxHeight = Math.max(0, window.innerHeight - menuViewportTop - 5)
-            mainContextMenu.style.setProperty("max-height", `${maxHeight}px`)
-            mainContextMenu.style.setProperty("overflow-y", "scroll")
-        } else {
-            mainContextMenu.style.removeProperty("max-height")
-            mainContextMenu.style.removeProperty("overflow-y")
-        }
-
+        mainContextMenu.classList.add("context-menu-panel", "show-menu")
+        applyModifiersTo(mainContextMenu, buildItems(menuData, 0))
+        mainContextMenu.scrollTop = 0
         this._openedContextMenu = mainContextMenu
+        this.placeMenu(mainContextMenu, e.clientX, e.clientY)
+        const onResize = () => this.hideContextMenuIfNeeded()
+        window.addEventListener("resize", onResize)
+        this._menuResizeCleanup = () => window.removeEventListener("resize", onResize)
 
         return true // handled
     }

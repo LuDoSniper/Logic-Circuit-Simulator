@@ -23,6 +23,7 @@ import { MoveManager } from "./MoveManager"
 import { NodeManager } from "./NodeManager"
 import { RecalcManager, RedrawManager } from "./RedrawRecalcManager"
 import { SVGRenderingContext } from "./SVGRenderingContext"
+import { circuitBounds, frameCircuit } from "./CircuitGeometry"
 import { Circuit, CircuitObjectOptions, PostLoadActions, PostLoadActions_None, PostLoadActions_SnapshotNoStorage, PostLoadActions_SnapshotStorage, Serialization } from "./Serialization"
 import { TestCaseCombinational, TestCaseResult, TestCaseResultMismatch, TestCaseValueMap, TestSuite, TestSuiteResults, TestSuites, isOutput } from "./TestSuite"
 import { Tests } from "./Tests"
@@ -324,6 +325,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
     private _baseUIDrawingScale = 1
     private _userDrawingScale = 1
     public get userDrawingScale() { return this._userDrawingScale }
+    private _mainCircuitView: { zoom: number, x: number, y: number } | undefined
     private _translationX = 0
     public get translationX() { return this._translationX }
     private _translationY = 0
@@ -1100,6 +1102,7 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
 
         // this is called a second time here because the canvas width may have changed following the mode change
         this.setCanvasSize()
+        if (this._isSingleton) this.centerCircuitView()
         LogicEditor.installGlobalListeners()
 
         this.doRedraw(true)
@@ -1373,6 +1376,23 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         }
         this.editTools.redrawMgr.requestRedraw({ why: "zoom level changed", invalidateMask: true })
         return zoom
+    }
+
+    public centerCircuitView() {
+        const root = this.editorRoot
+        const container = this.html.canvasContainer
+        if (container.clientWidth <= 0 || container.clientHeight <= 0) return
+        const points: DrawableWithPosition[] = [...root.components.all()]
+        for (const wire of root.linkMgr.wires) {
+            if (wire.isBusFollower || (wire.isHidden && !this.options.showHiddenWires)) continue
+            points.push(wire.startNode,wire.endNode,...wire.waypoints)
+        }
+        const bounds = circuitBounds(points)
+        if (bounds === undefined) return
+        const view = frameCircuit(bounds,container.clientWidth,container.clientHeight,this._userDrawingScale*100)
+        if (view === undefined) return
+        this.setZoom(view.zoom,true)
+        this.setTranslation(view.x,view.y)
     }
 
     public setTranslation(tX: number, tY: number) {
@@ -1746,17 +1766,17 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
 
     public replaceWorkspaceCircuit(circuit: Circuit, resetHistory = true) {
         const backup = JSON.parse(JSON.stringify(this.save())) as Circuit
-        const load = (data: Circuit) => {
-            this.setEditorRoot(this)
+        const load = (data: Circuit, centerView = true) => {
+            this.setEditorRoot(this, false)
             this.eventMgr.currentSelection = undefined
             this.eventMgr.setCurrentComponentUnderPointer(null)
             this.eventMgr.clearTooltipIfNeeded()
             this.editTools.moveMgr.clear()
             this.userdata = data.userdata === undefined ? undefined : structuredClone(data.userdata)
-            const error = Serialization.loadCircuitOrLibrary(this, structuredClone(data), PostLoadActions_None)
+            const error = Serialization.loadCircuitOrLibrary(this, structuredClone(data), PostLoadActions_None, {centerView})
             if (error !== undefined) throw new Error(error)
         }
-        try { load(circuit) } catch (e) { load(backup); throw e }
+        try { load(circuit) } catch (e) { load(backup, false); throw e }
         if (resetHistory) this.editTools.undoMgr.resetHistory()
         else this.editTools.undoMgr.takeSnapshot(undefined, true)
         this.clearDirty()
@@ -1895,7 +1915,8 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         this.html.rootDiv.classList.toggle("dark", dark)
     }
 
-    public setEditorRoot(newRoot: DrawableParent) {
+    public setEditorRoot(newRoot: DrawableParent, frameView = true) {
+        if (!frameView) this._mainCircuitView = undefined
         if (newRoot === this._editorRoot) {
             return
         }
@@ -1904,6 +1925,9 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
             this._editorRoot.stopEditingThis()
         }
 
+        if (frameView && this._editorRoot === this && newRoot !== this) {
+            this._mainCircuitView = {zoom:this._userDrawingScale*100,x:this._translationX,y:this._translationY}
+        }
         this._editorRoot = newRoot
         newRoot.startEditingThis(this.editTools)
 
@@ -1919,6 +1943,14 @@ export class LogicEditor extends HTMLElement implements DrawableParent {
         this._highlightedItems = undefined
         this.eventMgr.currentSelection = undefined
         this.eventMgr.clearTooltipIfNeeded()
+        if (frameView && newRoot === this && this._mainCircuitView !== undefined) {
+            const view = this._mainCircuitView
+            this._mainCircuitView = undefined
+            this.setZoom(view.zoom,true)
+            this.setTranslation(view.x,view.y)
+        } else if (frameView && this._isSingleton) {
+            this.centerCircuitView()
+        }
         this.eventMgr.updateComponentUnderPointer([this.pointerX, this.pointerY], false, false, false)
         this.editTools.testsPalette.update()
         this.editTools.moveMgr.clear()

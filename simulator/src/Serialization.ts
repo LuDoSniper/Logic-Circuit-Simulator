@@ -1,4 +1,5 @@
 import * as t from "io-ts"
+import { translateWaypoint } from "./CircuitGeometry"
 import JSON5 from "json5"
 import * as json5util from "json5/lib/util"
 import { CurrentFormatVersion, migrateData } from './DataMigration'
@@ -79,6 +80,7 @@ export type PostLoadActions =
 
 type LoadOptions = {
     immediateWirePropagation?: boolean,
+    centerView?: boolean,
     skipMigration?: boolean
 }
 
@@ -120,7 +122,7 @@ class _Serialization {
         // find difference of mouse position and honor it in the new components' positions
         // to avoid pasting new components on top of the old ones
         let offsetPos: [number, number] | undefined = undefined
-        if (isArray(parsed.pos)) {
+        if (isArray(parsed.pos) && parsed.pos.length === 2 && parsed.pos.every(v => typeof v === "number" && Number.isFinite(v))) {
             const editor = parent.editor
             const ceil10 = (x: number) => Math.ceil(x / 10) * 10
             offsetPos = [ceil10(editor.pointerX - parsed.pos[0]), ceil10(editor.pointerY - parsed.pos[1])]
@@ -133,7 +135,7 @@ class _Serialization {
         }
 
         const { nodeMapping, components, componentsByRef } = this.makeComponents(parent, compReprs, offsetPos)
-        this.makeWires(parent, parsed.wires, nodeMapping, componentsByRef, false)
+        this.makeWires(parent, parsed.wires, nodeMapping, componentsByRef, false, offsetPos)
         return components
     }
 
@@ -169,6 +171,7 @@ class _Serialization {
         delete parsed.v
 
         if (parent.isMainEditor()) {
+            parent.setEditorRoot(parent, false)
             parent.factory.clearCustomDefs()
             parent.factory.tryLoadCustomDefsFrom(parsed.defs)
             delete parsed.defs
@@ -226,12 +229,7 @@ class _Serialization {
             parent.setPartialOptions(partialOptions)
             delete parsed.opts
 
-            const takeSnapshot = postLoadActions.startsWith("snapshot")
-            if (takeSnapshot) {
-                const skipStorage = !postLoadActions.endsWith("storage")
-                parent.editor.editTools.undoMgr.takeSnapshot(undefined, skipStorage)
-            }
-
+            const centerView = opts?.centerView ?? parent.isSingleton
             parent.updateKeyInfoPanel()
             parent.updateCustomComponentButtons()
 
@@ -270,11 +268,16 @@ class _Serialization {
                     console.error("Error loading scratch space: " + error)
                 } else {
                     // switch editor to the scratch
-                    parent.setEditorRoot(customComp)
+                    parent.setEditorRoot(customComp, false)
                 }
 
             }
             delete parsed.scratch
+            if (centerView) parent.centerCircuitView()
+            if (postLoadActions.startsWith("snapshot")) {
+                const skipStorage = !postLoadActions.endsWith("storage")
+                parent.editTools.undoMgr.takeSnapshot(undefined, skipStorage)
+            }
         }
 
         const unhandledData = keysOf(parsed)
@@ -297,7 +300,7 @@ class _Serialization {
     private makeComponents(parent: DrawableParent, compReprs: unknown, offsetPos: [number, number] | undefined): { nodeMapping: NodeMapping, components: Component[], componentsByRef: Record<string, Component> } {
         // TODO also return a mapping for renamed component ids according to the same principle
         const components: Component[] = []
-        const componentsByRef: Record<string, Component> = {}
+        const componentsByRef: Record<string, Component> = Object.create(null)
         const anchorsToSet: Array<[Component, string]> = []
         const stripTags = parent.editor.stripTags
         const add = (c: Component | undefined, repr: unknown) => {
@@ -311,9 +314,9 @@ class _Serialization {
                 return
             }
             components.push(c)
-            if (c.ref !== undefined) {
-                componentsByRef[c.ref] = c
-            }
+            // Use the original clipboard reference, even when the new component has been renamed.
+            const originalRef = isRecord(repr) && isString(repr.ref) ? repr.ref : c.ref
+            if (originalRef !== undefined) componentsByRef[originalRef] = c
             let anchor
             if (isRecord(repr) && "anchor" in repr && isString(anchor = repr.anchor)) {
                 anchorsToSet.push([c, anchor])
@@ -353,7 +356,7 @@ class _Serialization {
     }
 
 
-    private makeWires(parent: DrawableParent, wires: unknown, nodeMapping: NodeMapping, componentsByRef: Record<string, Component>, immediateWirePropagation: boolean) {
+    private makeWires(parent: DrawableParent, wires: unknown, nodeMapping: NodeMapping, componentsByRef: Record<string, Component>, immediateWirePropagation: boolean, offsetPos?: [number, number]) {
         const linkMgr = parent.linkMgr
         const nodeMgr = parent.nodeMgr
 
@@ -376,7 +379,10 @@ class _Serialization {
                 const completedWire = linkMgr.addWire(node1, node2, false, wireOptions?.bus ?? false)
                 if (completedWire !== undefined) {
                     if (wireOptions !== undefined) {
-                        completedWire.setOptions(wireOptions, componentsByRef)
+                        const options = offsetPos !== undefined && wireOptions.via !== undefined
+                            ? { ...wireOptions, via: wireOptions.via.map(point => translateWaypoint(point, offsetPos)) }
+                            : wireOptions
+                        completedWire.setOptions(options, componentsByRef)
                     }
                     if (immediateWirePropagation) {
                         completedWire.customPropagationDelay = 0

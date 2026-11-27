@@ -152,3 +152,25 @@ test("constant word editing validates width and preserves bit order", () => {
     assert.deepEqual(parseConstantWord("1?0z",4,true),["Z",false,"?",true])
     assert.equal(parseConstantWord("",0),undefined)
 })
+
+import { translateWaypoint, circuitBounds, frameCircuit } from "../simulator/src/CircuitGeometry.ts"
+test("clipboard offsets preserve waypoint options and translate all coordinates", () => {
+    const points = [[100,200],[120,220,"n"],[140,240,"e","component"],[160,260,"w",null,{lockPos:true}]]
+    const translated = points.map(p=>translateWaypoint(p,[-300,500]))
+    assert.deepEqual(translated,[[-200,700],[-180,720,"n"],[-160,740,"e","component"],[-140,760,"w",null,{lockPos:true}]])
+    assert.deepEqual(points[0],[100,200])
+})
+test("circuit camera frames off-origin content without moving geometry", () => {
+    const points = [{posX:10100,posY:-9100,width:100,height:60},{posX:10900,posY:-9500,width:100,height:60},{posX:12000,posY:-9200,width:0,height:0}]
+    const bounds = circuitBounds(points)
+    assert.deepEqual(bounds,{left:10050,top:-9530,right:12000,bottom:-9070})
+    const view = frameCircuit(bounds,1000,600,100)
+    const scale = view.zoom/100
+    assert.ok(view.zoom<100)
+    assert.ok(Math.abs(((bounds.left+bounds.right)/2+view.x)*scale-500)<1e-8)
+    assert.ok(Math.abs(((bounds.top+bounds.bottom)/2+view.y)*scale-300)<1e-8)
+    assert.ok((bounds.left+view.x)*scale>=48)
+    assert.equal(frameCircuit(bounds,0,600,100),undefined)
+    assert.equal(circuitBounds([]),undefined)
+    assert.equal(points[0].posX,10100)
+})

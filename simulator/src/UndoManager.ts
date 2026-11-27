@@ -152,7 +152,7 @@ export class UndoManager {
     }
 
     private loadSnapshot(snapshot: Snapshot) {
-        Serialization.loadCircuitOrLibrary(this.editor, snapshot.circuitStr, PostLoadActions_None)
+        Serialization.loadCircuitOrLibrary(this.editor, snapshot.circuitStr, PostLoadActions_None, {centerView:false})
     }
 
     private fireStateChangedIfNeeded() {

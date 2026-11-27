@@ -84,3 +84,5 @@ The Probe (Input/Output palette) is a configurable 1–32 bit pass-through displ
 The Lock This Value context-menu option is available for every input width, and shows the complete binary word. Locking retains the current value and disables push-button behavior. Constant inputs are not exposed as custom component ports and are excluded from external input names and test selection; their stored values remain part of the circuit.
 
 Locked inputs can be edited explicitly using Edit Constant Value in the context menu, even in a custom component editor. The complete binary word is entered MSB-first and must match the input width. The lock remains enabled; ordinary clicks cannot change the value. Full mode also accepts ? and Z.
+
+Clipboard paste applies the same translation to components and wire waypoints (including locked points), preserving bend geometry and copied anchor references. Opening a standalone circuit or a custom component frames its contents, including cable waypoints, and zooms out only as needed. Returning from a component restores the previous main-circuit view when available. Undo/redo retain their recorded camera instead of auto-framing.

@@ -247,6 +247,9 @@ export abstract class Drawable {
         return false
     }
 
+    /** Some gestures (such as resizing) act only on their pointer target. */
+    public get wantsExclusiveDrag(): boolean { return false }
+
     public cursorWhenMouseover(__e?: PointerEvent): string | undefined {
         return undefined
     }

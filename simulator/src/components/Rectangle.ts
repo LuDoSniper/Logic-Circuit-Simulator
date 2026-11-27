@@ -70,7 +70,7 @@ export type RectangleRepr = Repr<typeof RectangleDef>
 export class Rectangle extends ComponentBase<RectangleRepr> {
 
     private _resize: { edge: ResizeEdge, startX: number, startY: number, original: CircuitPoint } | undefined
-    public get isResizing() { return this._resize !== undefined }
+    public override get wantsExclusiveDrag() { return this._resize !== undefined }
 
     private _w: number
     private _h: number
@@ -123,7 +123,8 @@ export class Rectangle extends ComponentBase<RectangleRepr> {
     }
 
     public override cursorWhenMouseover(e?: PointerEvent) {
-        const edge = this._resize?.edge ?? (e && !e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey ? this.resizeEdgeAt(...this.parent.editor.offsetXY(e)) : undefined)
+        const editor = this.parent.editor
+        const edge = this._resize?.edge ?? (!(e?.altKey || e?.metaKey || e?.ctrlKey || e?.shiftKey) ? this.resizeEdgeAt(...(e ? editor.offsetXY(e) : [editor.pointerX,editor.pointerY] as const)) : undefined)
         if (edge) {
             const [dx,dy] = edge
             return dx === 0 ? "ns-resize" : dy === 0 ? "ew-resize" : dx === dy ? "nwse-resize" : "nesw-resize"

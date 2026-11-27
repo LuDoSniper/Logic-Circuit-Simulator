@@ -609,6 +609,9 @@ const Strings_fr = {
             },
             contextMenu: {
                 LockValue: "Verrouiller cette valeur",
+                EditConstantValue: "Modifier la valeur constante…",
+                EditConstantPrompt: "Saisissez la valeur binaire, bit de poids fort à gauche",
+                InvalidConstantValue: "Valeur invalide : respectez la largeur et les caractères autorisés",
                 PushButton: "Poussoir",
                 ToggleButton: "Commutateur",
                 ReplaceWithClock: "Remplacer par horloge",
@@ -1520,6 +1523,9 @@ const Strings_en: Strings = {
             },
             contextMenu: {
                 LockValue: "Lock This Value",
+                EditConstantValue: "Edit Constant Value…",
+                EditConstantPrompt: "Enter the binary value, most significant bit on the left",
+                InvalidConstantValue: "Invalid value: use the required width and allowed characters",
                 PushButton: "Push Button",
                 ToggleButton: "Toggle Button",
                 ReplaceWithClock: "Replace With Clock",

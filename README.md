@@ -82,3 +82,5 @@ Custom component Appearance includes a default color with palette and custom col
 The Probe (Input/Output palette) is a configurable 1–32 bit pass-through display. It accepts a signal at its input and forwards the same bits at its output. For multi-bit values both terminals are compact buses; the display places bit 0 at the top when vertical and at the right when horizontal, regardless of rotation and has a live binary tooltip. It does not create an external pin when used inside a custom component.
 
 The Lock This Value context-menu option is available for every input width, and shows the complete binary word. Locking retains the current value and disables push-button behavior. Constant inputs are not exposed as custom component ports and are excluded from external input names and test selection; their stored values remain part of the circuit.
+
+Locked inputs can be edited explicitly using Edit Constant Value in the context menu, even in a custom component editor. The complete binary word is entered MSB-first and must match the input width. The lock remains enabled; ordinary clicks cannot change the value. Full mode also accepts ? and Z.

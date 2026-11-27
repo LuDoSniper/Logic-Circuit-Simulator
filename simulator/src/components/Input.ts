@@ -1,4 +1,5 @@
 import * as t from "io-ts"
+import { parseConstantWord } from "../BusBits"
 import { COLOR_BACKGROUND, COLOR_COMPONENT_BORDER, COMPONENT_OUTLINE_THICKNESS, GRID_STEP, INPUT_OUTPUT_DIAMETER, circle, colorForLogicValue, distSquared, drawComponentName, drawValueText, drawValueTextCentered, drawWireLineToComponent, inRect, isTrivialNodeName, triangle, useCompact } from "../drawutils"
 import { mods, tooltipContent } from "../htmlgen"
 import { S } from "../strings"
@@ -573,6 +574,30 @@ export class Input extends InputBase<InputRepr> {
         this.parent.ifEditing?.setDirty("constant changed")
     }
 
+    private async editConstantValue() {
+        if (!this._isConstant) return InteractionResult.NoChange
+        const s = S.Components.Input.contextMenu
+        const allowSpecial = this.parent.mode >= Mode.FULL
+        const current = binaryStringRepr(this.value)
+        const prompt = s.EditConstantPrompt + " (" + this.numBits + " bits; " + (allowSpecial ? "0, 1, ?, Z" : "0, 1") + ")"
+        const editor = this.parent.editor
+        let initial = current
+        while (true) {
+            const answer = await editor.appPrompt(prompt, initial)
+            if (answer === null || !this._isConstant) return InteractionResult.NoChange
+            const values = parseConstantWord(answer, this.numBits, allowSpecial)
+            if (values === undefined) {
+                await editor.appAlert(s.InvalidConstantValue + " (" + this.numBits + " bits).")
+                initial = answer
+                continue
+            }
+            if (binaryStringRepr(values) === current) return InteractionResult.NoChange
+            this.setValue(values)
+            this.parent.ifEditing?.setDirty("constant value changed")
+            return InteractionResult.SimpleChange
+        }
+    }
+
     protected override makeComponentSpecificContextMenuItems(): MenuItems {
         const s = S.Components.Input.contextMenu
 
@@ -603,6 +628,7 @@ export class Input extends InputBase<InputRepr> {
             ["mid", MenuData.item(this._isConstant ? "check" : "none",
                 s.LockValue + ` (${binaryStringRepr(this.value)})`,
                 () => this.doSetIsConstant(!this._isConstant))],
+            ...(this._isConstant ? [["mid", MenuData.item("pen", s.EditConstantValue, () => this.editConstantValue())]] as MenuItems : []),
             ["mid", MenuData.sep()],
         )
 

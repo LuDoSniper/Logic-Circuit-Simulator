@@ -26,3 +26,10 @@ export function probeDisplayValues<T>(values: readonly T[], orientation: "e" | "
     // The drawing transform reverses the local vertical axis for west and north.
     return orientation === "w" || orientation === "n" ? [...values].reverse() : values
 }
+
+/** Parse an MSB-first binary word into the simulator's LSB-first lane order. */
+export function parseConstantWord(text: string, width: number, allowSpecial = false): (boolean | "?" | "Z")[] | undefined {
+    const word = text.trim().toUpperCase()
+    if (!Number.isInteger(width) || width < 1 || word.length !== width || !(allowSpecial ? /^[01?Z]+$/ : /^[01]+$/).test(word)) return undefined
+    return Array.from(word).reverse().map(bit => bit === "?" ? "?" : bit === "Z" ? "Z" : bit === "1")
+}

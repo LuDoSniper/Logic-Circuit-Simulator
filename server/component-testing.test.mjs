@@ -41,7 +41,7 @@ test("portable overflow example has eight valid independent cases", () => {
     assert.equal(game.results,undefined)
 })
 
-import { resizeBus, isBusPinGroup, busConnectionMode, probeDisplayValues } from "../simulator/src/BusBits.ts"
+import { resizeBus, isBusPinGroup, busConnectionMode, probeDisplayValues, parseConstantWord } from "../simulator/src/BusBits.ts"
 test("bus converter preserves LSB order, slices and extends", () => {
     assert.deepEqual(resizeBus([1,0,1,1],2,0,false,0),[1,0])
     assert.deepEqual(resizeBus([1,0,1,1],2,2,false,0),[1,1])
@@ -140,4 +140,15 @@ test("multibit constant values affect functional test signatures, unlike variabl
     assert.notEqual(sig("00000101",true),sig("00000110",true))
     assert.equal(sig("00000101",false),sig("00000110",false))
     assert.notEqual(sig("00000101",false),sig("00000101",true))
+})
+
+test("constant word editing validates width and preserves bit order", () => {
+    assert.deepEqual(parseConstantWord("00000101",8),[true,false,true,false,false,false,false,false])
+    assert.deepEqual(parseConstantWord("1",1),[true])
+    assert.deepEqual(parseConstantWord(" 00000000 ",8),Array(8).fill(false))
+    assert.equal(parseConstantWord("101",8),undefined)
+    assert.equal(parseConstantWord("00000002",8),undefined)
+    assert.equal(parseConstantWord("0000000Z",8),undefined)
+    assert.deepEqual(parseConstantWord("1?0z",4,true),["Z",false,"?",true])
+    assert.equal(parseConstantWord("",0),undefined)
 })

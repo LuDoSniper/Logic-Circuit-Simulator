@@ -1263,9 +1263,6 @@ class EditHandlers extends ToolHandlers {
 
     public constructor(editor: LogicEditor) {
         super(editor)
-        const main = editor.html.mainContextMenu
-        main.addEventListener("scroll", () => this.closeSubmenusFrom(0))
-        main.addEventListener("wheel", e => e.stopPropagation(), { passive: true })
     }
 
     public override pointerHoverOn(comp: Drawable) {
@@ -1698,8 +1695,28 @@ class EditHandlers extends ToolHandlers {
         this._openedContextMenu = mainContextMenu
         this.placeMenu(mainContextMenu, e.clientX, e.clientY)
         const onResize = () => this.hideContextMenuIfNeeded()
+        const onScroll = () => this.closeSubmenusFrom(0)
+        const onWheel = (ev: WheelEvent) => ev.stopPropagation()
+        const onKey = (ev: KeyboardEvent) => {
+            if (ev.key === "Escape") {
+                ev.preventDefault()
+                ev.stopPropagation()
+                // The canvas handles Escape on keyup; leave that handler in charge
+                // when focus is already on the canvas.
+                if (ev.composedPath().includes(this.editor.html.mainCanvas)) return
+                this.hideContextMenuIfNeeded()
+            }
+        }
         window.addEventListener("resize", onResize)
-        this._menuResizeCleanup = () => window.removeEventListener("resize", onResize)
+        mainContextMenu.addEventListener("scroll", onScroll)
+        mainContextMenu.addEventListener("wheel", onWheel, { passive: true })
+        this.editor.html.rootDiv.addEventListener("keydown", onKey)
+        this._menuResizeCleanup = () => {
+            window.removeEventListener("resize", onResize)
+            mainContextMenu.removeEventListener("scroll", onScroll)
+            mainContextMenu.removeEventListener("wheel", onWheel)
+            this.editor.html.rootDiv.removeEventListener("keydown", onKey)
+        }
 
         return true // handled
     }

@@ -707,9 +707,12 @@ const Strings_fr = {
         Output: {
             tooltip: {
                 title: template("Sortie (${numBits} bit$s{numBits})"),
+                internalDescription: "Sortie interne : affiche le signal sans créer de broche externe du composant.",
+                externalDescription: "Sortie exposée sur le symbole du composant personnalisé.",
             },
             contextMenu: {
                 ParamBulb: "Apparence d’ampoule",
+                InternalOutput: "Sortie interne (masquer sur le composant)",
             },
         },
         Display7Seg: {
@@ -1615,9 +1618,12 @@ const Strings_en: Strings = {
         Output: {
             tooltip: {
                 title: template("Output (${numBits}-Bit)"),
+                internalDescription: "Internal output: displays the signal without exposing a custom component pin.",
+                externalDescription: "Output exposed on the custom component symbol.",
             },
             contextMenu: {
                 ParamBulb: "Show As Bulb",
+                InternalOutput: "Internal output (hide from component)",
             },
         },
         Display7Seg: {

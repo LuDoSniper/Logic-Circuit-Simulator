@@ -68,7 +68,7 @@ export function openComponentTestingDialog(root: CustomComponent, host: HTMLElem
     const draft = structuredClone(root.draftDocumentation)
     const components = [...root.components.all()]
     const ins = ports(components.filter((c): c is Input => c.def.type === "in" && !(c as Input).isConstant))
-    const outs = ports(components.filter((c): c is Output => c.def.type === "out"))
+    const outs = ports(components.filter((c): c is Output => c.def.type === "out" && !(c as Output).isInternal))
     const bits = ins.reduce((n,p) => n + p.bits, 0)
     const signature = () => circuitSignature(editor.factory.buildCustomTestingCircuit(root), id => editor.factory.getCustomDef(id)?.circuit)
     const newId = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2)

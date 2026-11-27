@@ -103,7 +103,7 @@ export class CustomComponentDef {
         for (const [id, repr_] of Object.entries(components)) {
             const repr = repr_ as ComponentRepr<true, true>
             const isIn = repr.type === "in" && !((repr as InputRepr).isConstant ?? false)
-            const isOut = repr.type === "out"
+            const isOut = repr.type === "out" && (repr as OutputRepr).isInternal !== true
             if (isIn || isOut) {
                 const inOutRepr = repr as InputRepr | OutputRepr
                 const name = isString(inOutRepr.name) ? inOutRepr.name : (isIn ? "In" : "Out")
@@ -393,7 +393,7 @@ export class CustomComponent extends ComponentBase<CustomComponentRepr, LogicVal
                     this.inputs._all[j].prefersSpike = comp.isPushButton
                 }
                 iIn += num
-            } else if (comp instanceof Output) {
+            } else if (comp instanceof Output && !comp.isInternal) {
                 this._subcircuitOutputs.push(comp)
             }
         }

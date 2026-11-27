@@ -1,6 +1,6 @@
 import * as t from "io-ts"
 import { COLOR_BACKGROUND, COLOR_COMPONENT_BORDER, COMPONENT_OUTLINE_THICKNESS, GRID_STEP, INPUT_OUTPUT_DIAMETER, circle, colorForLogicValue, distSquared, drawComponentName, drawValueText, drawValueTextCentered, drawWireLineToComponent, isTrivialNodeName, triangle, useCompact } from "../drawutils"
-import { mods, tooltipContent } from "../htmlgen"
+import { div, mods, tooltipContent } from "../htmlgen"
 import { S } from "../strings"
 import { ArrayFillWith, ComponentTypeOutput, LogicValue, Mode, Orientation, Unknown, isHighImpedance, isUnknown, reprForLogicValues, toLogicValueRepr, typeOrUndefined } from "../utils"
 import { Component, ComponentName, ComponentNameRepr, ParametrizedComponentBase, Repr, ResolvedParams, defineParametrizedComponent, groupVertical, paramBool } from "./Component"
@@ -18,6 +18,7 @@ export const OutputDef =
             bits: typeOrUndefined(t.number),
             bulb: typeOrUndefined(t.boolean),
             name: ComponentNameRepr,
+            isInternal: typeOrUndefined(t.boolean),
         },
         valueDefaults: {},
         params: {
@@ -59,6 +60,7 @@ export class Output extends ParametrizedComponentBase<OutputRepr> {
     public readonly numBits: number
     public readonly showAsBulb: boolean
     private _name: ComponentName
+    private _isInternal: boolean
 
     public constructor(parent: DrawableParent, params: OutputParams, saved?: OutputRepr) {
         super(parent, OutputDef.with(params), saved)
@@ -67,6 +69,7 @@ export class Output extends ParametrizedComponentBase<OutputRepr> {
         this.showAsBulb = params.showAsBulb
 
         this._name = saved?.name ?? undefined
+        this._isInternal = saved?.isInternal === true
     }
 
     public toJSON() {
@@ -75,6 +78,7 @@ export class Output extends ParametrizedComponentBase<OutputRepr> {
             bits: this.numBits === OutputDef.aults.bits ? undefined : this.numBits,
             bulb: this.showAsBulb === OutputDef.aults.bulb ? undefined : this.showAsBulb,
             name: this._name,
+            isInternal: this._isInternal ? true : undefined,
         }
     }
 
@@ -83,6 +87,17 @@ export class Output extends ParametrizedComponentBase<OutputRepr> {
             return this.parent.mode >= Mode.CONNECT && distSquared(x, y, this.posX, this.posY) < (INPUT_OUTPUT_DIAMETER / 2) ** 2
         }
         return super.isOver(x, y)
+    }
+
+    public get isInternal() {
+        return this._isInternal
+    }
+
+    public doSetIsInternal(value: boolean) {
+        if (value === this._isInternal) return
+        this._isInternal = value
+        this.requestRedraw({ why: "output visibility changed", invalidateTests: true })
+        this.parent.ifEditing?.setDirty("output visibility changed")
     }
 
     public get name() {
@@ -95,7 +110,8 @@ export class Output extends ParametrizedComponentBase<OutputRepr> {
 
     public override makeTooltip() {
         const s = S.Components.Output.tooltip
-        return tooltipContent(undefined, mods(s.title.expand({ numBits: this.numBits })))
+        return tooltipContent(undefined, mods(s.title.expand({ numBits: this.numBits }),
+            this._isInternal ? div(s.internalDescription) : div(s.externalDescription)))
     }
 
     protected doRecalcValue(): LogicValue[] {
@@ -111,6 +127,18 @@ export class Output extends ParametrizedComponentBase<OutputRepr> {
             this.doDrawSingle(g, ctx, this.inputs.In[0])
         } else {
             this.doDrawMulti(g, ctx, this.inputs.In)
+        }
+        if (this._isInternal && this.parent.mode >= Mode.CONNECT) {
+            // Keep the live value display, with a small label outside the body.
+            ctx.inNonTransformedFrame(ctx => {
+                const [x,y] = ctx.rotatePoint(this.posX, this.posY + this.unrotatedHeight / 2 + 9)
+                g.save()
+                g.fillStyle = COLOR_COMPONENT_BORDER
+                g.font = "bold 8px sans-serif"
+                g.textAlign = "center"
+                g.fillText("INT", x, y)
+                g.restore()
+            })
         }
     }
 
@@ -297,6 +325,7 @@ export class Output extends ParametrizedComponentBase<OutputRepr> {
 
         return [
             ["mid", this.makeSetNameContextMenuItem(this._name, this.doSetName.bind(this))],
+            ["mid", MenuData.item(this._isInternal ? "check" : "none", s.InternalOutput, () => this.doSetIsInternal(!this._isInternal))],
             ["mid", MenuData.sep()],
             ...(this.numBits !== 1 ? [] : [
                 this.makeChangeBooleanParamsContextMenuItem(s.ParamBulb, this.showAsBulb, "bulb"),

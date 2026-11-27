@@ -67,3 +67,10 @@ test("development summary counts only current cases and handles pending, errors 
     assert.deepEqual(summarizeDevelopmentResults(cases,results),{total:5,pass:2,fail:0,error:1,idle:2})
     assert.deepEqual(summarizeDevelopmentResults([],results),{total:0,pass:0,fail:0,error:0,idle:0})
 })
+
+test("changing an output to internal invalidates previously recorded component test results", () => {
+    const circuit = { components: { Y: {type:"out",bits:1}, carry: {type:"out",bits:1} }, wires:[[1,2],[3,4]] }
+    const before = circuitSignature(circuit,() => undefined)
+    circuit.components.carry.isInternal = true
+    assert.notEqual(circuitSignature(circuit,() => undefined),before)
+})

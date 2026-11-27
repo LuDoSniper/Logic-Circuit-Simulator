@@ -68,3 +68,7 @@ Drag between two multi-bit pin groups of equal width to connect corresponding bi
 Bus Merger and Bus Splitter (Layout, 1–32 bits) expose a single compact bus terminal and individually accessible D0…Dn−1 pins. D0 is the least-significant bit. Compact terminals require matching-width bus connections; use a splitter to access individual bits. The width converter remains available separately.
 
 In a custom component’s Appearance editor, each multi-bit port can independently be displayed as individual Bits or a single compact Bus terminal. The choice travels with the existing pin layout in exports; logical node IDs and widths are unchanged. Legacy layouts default to individual pins. Existing full, matching-width connections are drawn as buses when either endpoint becomes compact; partial or irregular connections are preserved, and can be edited by returning the pin to Bits mode.
+
+### Internal outputs
+
+Right-click any output (including multi-bit outputs) and enable Internal output. The live signal remains visible in the internal circuit, but the output is not exposed as a custom component port, is not listed in the Appearance editor or the component development tests, and needs no external port name. The optional `isInternal` flag is persisted in circuit and library exports; older outputs remain external by default. Disabling the option exposes the output again when the component definition is saved.

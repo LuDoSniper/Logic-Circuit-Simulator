@@ -754,7 +754,9 @@ export class ComponentFactory {
             return true
         }
 
-        const namesValid = checkNames(inputs) && checkNames(outputs)
+        // Internal outputs are still included as signal sinks, but are not interface ports.
+        // They need neither a name nor a unique external port label.
+        const namesValid = checkNames(inputs) && checkNames(outputs.filter(out => !out.isInternal))
         if (!namesValid) {
             return s.InputsOutputsMustHaveNames
         }

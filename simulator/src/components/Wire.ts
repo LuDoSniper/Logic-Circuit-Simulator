@@ -2,9 +2,9 @@ import { Bezier, Offset } from "bezier-js"
 import * as t from "io-ts"
 import { busConnectionMode } from "../BusBits"
 import { BezierCoords, COLOR_ANCHOR_NEW, COLOR_COMPONENT_KEY, COLOR_MOUSE_OVER, COLOR_UNKNOWN, COLOR_WIRE, GRID_STEP, LineCoords, NodeStyle, OPACITY_HIDDEN_ITEMS, WAYPOINT_DIAMETER, WIRE_WIDTH, colorForLogicValue, distSquaredToWaypointIfOver, drawAnchorTo, drawStraightWireLine, drawWaypoint, makeBezierCoords, strokeWireOutline, strokeWireOutlineAndSingleValue, strokeWireValue } from "../drawutils"
-import { div, span, style, title, tooltipContent } from "../htmlgen"
+import { cls, div, span, style, title, tooltipContent } from "../htmlgen"
 import { DrawParams } from "../LogicEditor"
-import { S } from "../strings"
+import { S, getLang } from "../strings"
 import { Timestamp } from "../Timeline"
 import { PointerDragEvent } from "../UIEventManager"
 import { binaryStringRepr, InteractionResult, LogicValue, Mode, Orientation, Orientations_, isArray, isString, toLogicValueRepr, typeOrNull, typeOrUndefined } from "../utils"
@@ -705,12 +705,24 @@ export class Wire extends Drawable {
         g.restore()
     }
 
-    public override makeTooltip() {
+    public get busTooltipValues(): { source: string, target: string } | undefined {
         const bus = this.busMembers
         if (!bus) return undefined
-        const source = binaryStringRepr(bus.map(w => w.startNode.value))
-        const target = binaryStringRepr(bus.map(w => w.endNode.value))
-        return tooltipContent("Bus · " + bus.length + " bits", div("Entrée : " + source, div("Sortie : " + target)), 340)
+        return { source: binaryStringRepr(bus.map(w => w.startNode.value)), target: binaryStringRepr(bus.map(w => w.endNode.value)) }
+    }
+
+    public override makeTooltip() {
+        const values = this.busTooltipValues
+        if (!values) return undefined
+        const fr = getLang() === "fr"
+        return tooltipContent("Bus · " + values.source.length + " bits",
+            div(cls("bus-value-tooltip"),
+                div(cls("bus-value-binary"),values.source),
+                div(cls("bus-value-destination"),style(values.source === values.target ? "display:none" : ""),
+                    div(fr ? "Valeur reçue" : "Received value"),
+                    div(cls("bus-value-binary"),values.target)),
+                div(cls("bus-value-order"),fr ? "Bit fort → bit faible (base 2)" : "MSB → LSB (base 2)"),
+            ), 460)
     }
 
     protected override shouldBeHighlightedWith(compUnderPointer: Drawable): PointerOverMode {

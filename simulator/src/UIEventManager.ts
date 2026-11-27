@@ -367,7 +367,7 @@ export class UIEventManager {
         }
     }
 
-    public makeTooltip(tooltipHtml: ModifierObject, rect: () => DOMRect) {
+    public makeTooltip(tooltipHtml: ModifierObject, rect: () => DOMRect, refresh?: () => boolean) {
         const { tooltipContents, tooltipElem, mainCanvas } = this.editor.html
         tooltipContents.innerHTML = ""
         tooltipHtml.applyTo(tooltipContents)
@@ -383,7 +383,13 @@ export class UIEventManager {
         const scrollParent = getScrollParent(mainCanvas)
         const scrollListener = () => tooltip.update()
         scrollParent.addEventListener("scroll", scrollListener)
-        const removeListener = () => scrollParent.removeEventListener("scroll", scrollListener)
+        const refreshHandle = refresh === undefined ? undefined : window.setInterval(() => {
+            if (refresh()) void tooltip.update()
+        }, 80)
+        const removeListener = () => {
+            scrollParent.removeEventListener("scroll", scrollListener)
+            if (refreshHandle !== undefined) window.clearInterval(refreshHandle)
+        }
         this._currentTooltip = [tooltip, removeListener]
 
         tooltipElem.setAttribute('data-show', '')
@@ -944,8 +950,11 @@ export class UIEventManager {
         } else {
             // moving pointer or dragging without a locked component
             const linkMgr = this.editor.editorRoot.linkMgr
+            const previous = this._currentComponentUnderPointer
             const comp = this.updateComponentUnderPointer(this.editor.offsetXY(e), linkMgr.isAddingWire, linkMgr.isSettingAnchor, e.pointerType === "touch")
-
+            const isBus = comp instanceof Wire && comp.busTooltipValues !== undefined
+            // Do not restart the bus hover timer on every small pointer movement.
+            if (isBus && previous === comp && (this._startHoverTimeoutHandle !== null || this._currentTooltip !== null)) return
             this.clearHoverTimeoutHandle()
             if (comp !== null) {
                 this._startHoverTimeoutHandle = setTimeout(() => {
@@ -954,7 +963,7 @@ export class UIEventManager {
                         return
                     }
                     this._currentHandlers.pointerHoverOn(comp)
-                }, 1200)
+                }, isBus ? 250 : 1200)
             }
         }
         this.editor.updateCursor(e)
@@ -1285,10 +1294,26 @@ class EditHandlers extends ToolHandlers {
                 const [cx, cy, w, h] =
                     comp instanceof DrawableWithPosition
                         ? [(comp.posX + dx) * f, (comp.posY + dy) * f, comp.width * f, comp.height * f]
-                        : [editor.pointerX, editor.pointerY, 4, 4]
+                        : [(editor.pointerX + dx) * f, (editor.pointerY + dy) * f, 4, 4]
                 return new DOMRect(containerRect.x + cx - w / 2, containerRect.y + cy - h / 2, w, h)
             }
-            editor.eventMgr.makeTooltip(tooltip, rect)
+            const refresh = comp instanceof Wire && comp.busTooltipValues !== undefined ? () => {
+                const values = comp.busTooltipValues
+                const host = editor.html.tooltipContents
+                if (!values || editor.options.hideTooltips) {
+                    editor.eventMgr.clearTooltipIfNeeded()
+                    return false
+                }
+                const binary = host.querySelectorAll<HTMLElement>(".bus-value-binary")
+                const destination = host.querySelector<HTMLElement>(".bus-value-destination")
+                if (binary.length !== 2 || destination === null) return false
+                if (binary[0].textContent === values.source && binary[1].textContent === values.target) return false
+                binary[0].textContent = values.source
+                binary[1].textContent = values.target
+                destination.style.display = values.source === values.target ? "none" : ""
+                return true
+            } : undefined
+            editor.eventMgr.makeTooltip(tooltip, rect, refresh)
         }
     }
 

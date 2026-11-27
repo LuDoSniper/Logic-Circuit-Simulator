@@ -38,6 +38,7 @@ import { LatchDDef } from "./components/LatchD"
 import { LatchSRDef, LatchSRWithEnableDef } from "./components/LatchSR"
 import { MuxDef } from "./components/Mux"
 import { OutputDef } from "./components/Output"
+import { ProbeDef } from "./components/Probe"
 import { PassthroughDef } from "./components/Passthrough"
 import { PixelDef } from "./components/Pixel"
 import { RAMDef } from "./components/RAM"
@@ -94,6 +95,7 @@ const componentsMenu: Array<Section> = [{
     items: [
         InputDef.button({ bits: 1, switch: false }, "Input1"),
         OutputDef.button({ bits: 1, bulb: false }, "Output1"),
+        ProbeDef.button({ bits: 8 }, ["OutputN","Output4"]),
         InputDef.button({ bits: 1, switch: true }, "InputSwitch", { visible: withButton }),
         OutputDef.button({ bits: 1, bulb: true }, "OutputBulb", { visible: withButton }),
         DisplayBarDef.button("DisplayBar", { compat: "out.bar", visible: withButton }),
@@ -428,7 +430,7 @@ function makeButtons(section: Section, showOnlyBuf: string[] | undefined) {
         const normallyHidden = item.visible !== undefined && item.visible !== "always"
         const [stringsKey, img] = isString(item.visual) ? [item.visual, item.visual] : item.visual
         const compStrings = S.ComponentBar.Components.props[stringsKey]
-        const [titleStr, captionStr] = item.type === "bus-merger" ? ["Regrouper des fils individuels en un bus", "Bus Merger"] : item.type === "bus-splitter" ? ["Séparer un bus en fils individuels", "Bus Splitter"] : item.type === "bus-converter" ? ["Convertisseur de largeur de bus", "Bus n → m"] : isString(compStrings) ? [compStrings, undefined] : compStrings
+        const [titleStr, captionStr] = item.type === "probe" ? ["Sonde traversante / Pass-through probe", "Probe"] : item.type === "bus-merger" ? ["Regrouper des fils individuels en un bus", "Bus Merger"] : item.type === "bus-splitter" ? ["Séparer un bus en fils individuels", "Bus Splitter"] : item.type === "bus-converter" ? ["Convertisseur de largeur de bus", "Bus n → m"] : isString(compStrings) ? [compStrings, undefined] : compStrings
         const { compButton, hiddenByShowOnly, hiddenNow } = makeButton(
             item.type, normallyHidden, componentIdsFor(item), showOnlyBuf,
             makeImage(img, item.width), captionStr, titleStr, item.params?.params, false

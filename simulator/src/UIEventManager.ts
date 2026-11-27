@@ -5,6 +5,7 @@ import { CustomComponent } from './components/CustomComponent'
 import { Drawable, DrawableWithDraggablePosition, DrawableWithPosition, MenuData, MenuItem } from "./components/Drawable"
 import { Node, NodeBase } from "./components/Node"
 import { Waypoint, Wire } from './components/Wire'
+import { Probe } from "./components/Probe"
 import { distSquared, DrawZIndex, GRID_STEP, setColorPointerOverIsDanger } from "./drawutils"
 import { applyModifiersTo, button, cls, emptyMod, li, Modifier, ModifierObject, mods, span, type } from './htmlgen'
 import { IconName, makeIcon } from './images'
@@ -952,7 +953,7 @@ export class UIEventManager {
             const linkMgr = this.editor.editorRoot.linkMgr
             const previous = this._currentComponentUnderPointer
             const comp = this.updateComponentUnderPointer(this.editor.offsetXY(e), linkMgr.isAddingWire, linkMgr.isSettingAnchor, e.pointerType === "touch")
-            const isBus = comp instanceof Wire && comp.busTooltipValues !== undefined
+            const isBus = (comp instanceof Wire || comp instanceof Probe) && comp.busTooltipValues !== undefined
             // Do not restart the bus hover timer on every small pointer movement.
             if (isBus && previous === comp && (this._startHoverTimeoutHandle !== null || this._currentTooltip !== null)) {
                 this.editor.updateCursor(e)
@@ -1300,7 +1301,7 @@ class EditHandlers extends ToolHandlers {
                         : [(editor.pointerX + dx) * f, (editor.pointerY + dy) * f, 4, 4]
                 return new DOMRect(containerRect.x + cx - w / 2, containerRect.y + cy - h / 2, w, h)
             }
-            const refresh = comp instanceof Wire && comp.busTooltipValues !== undefined ? () => {
+            const refresh = (comp instanceof Wire || comp instanceof Probe) && comp.busTooltipValues !== undefined ? () => {
                 const values = comp.busTooltipValues
                 const host = editor.html.tooltipContents
                 if (!values || editor.options.hideTooltips) {

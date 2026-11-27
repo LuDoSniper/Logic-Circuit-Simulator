@@ -42,6 +42,7 @@ import { LatchD, LatchDDef } from "./components/LatchD"
 import { LatchSR, LatchSRDef, LatchSRWithEnable, LatchSRWithEnableDef } from "./components/LatchSR"
 import { Mux, MuxDef } from "./components/Mux"
 import { Output, OutputDef } from "./components/Output"
+import { Probe, ProbeDef } from "./components/Probe"
 import { Passthrough, PassthroughDef } from "./components/Passthrough"
 import { Pixel, PixelDef } from "./components/Pixel"
 import { RAM, RAMDef } from "./components/RAM"
@@ -97,6 +98,7 @@ export type ComponentForDef<TDef> = Component & (
     TDef extends typeof LatchSRWithEnableDef ? LatchSRWithEnable :
     TDef extends typeof MuxDef ? Mux :
     TDef extends typeof OutputDef ? Output :
+    TDef extends typeof ProbeDef ? Probe :
     TDef extends typeof PassthroughDef ? Passthrough :
     TDef extends typeof PixelDef ? Pixel :
     TDef extends typeof RAMDef ? RAM :
@@ -131,6 +133,7 @@ const AllComponentDefs: ComponentMaker<any>[] = [
 
     // out
     OutputDef,
+    ProbeDef,
     DisplayDef,
     Display7SegDef,
     Display16SegDef,

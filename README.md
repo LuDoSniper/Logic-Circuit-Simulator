@@ -78,3 +78,5 @@ Independent gate operands are not bus ports. Dragging between expanded pin group
 Custom component Appearance supports independent integer-grid width and height, draggable edge/corner handles, and automatic sizing. Pin spacing sets the minimum. Manual dimensions persist in definitions and editing drafts, and long captions shrink or truncate visually without changing their stored name.
 
 Custom component Appearance includes a default color with palette and custom color picker. Right-click an instance to inherit its definition color, disable the tint, or override it locally. Colors persist in exports and drafts; local overrides survive cloning and definition updates, without changing the circuit logic or test signature.
+
+The Probe (Input/Output palette) is a configurable 1–32 bit pass-through display. It accepts a signal at its input and forwards the same bits at its output. For multi-bit values both terminals are compact buses; the display reads MSB to LSB from top to bottom and has a live binary tooltip. It does not create an external pin when used inside a custom component.

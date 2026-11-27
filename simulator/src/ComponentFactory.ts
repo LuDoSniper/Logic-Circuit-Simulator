@@ -716,8 +716,8 @@ export class ComponentFactory {
             public readonly components = new ComponentList()
             public readonly nodeMgr = new NodeManager()
             public readonly recalcMgr = new RecalcManager()
-            public readonly linkMgr = new LinkManager(this)
-            public readonly testSuites = new TestSuites(this)
+            public readonly linkMgr: LinkManager = new LinkManager(this)
+            public readonly testSuites: TestSuites = new TestSuites(this)
             public readonly ifEditing = undefined
             public readonly componentCreationParams = { isXRay: false }
             public get editor() { return root.editor }

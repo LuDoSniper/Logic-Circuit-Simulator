@@ -140,49 +140,6 @@ export class Waypoint extends DrawableWithDraggablePosition {
         g.globalAlpha = normalAlpha
     }
 
-    private drawBus(g: GraphicsRendering, ctx: DrawContext, bus: Wire[]) {
-        g.save()
-        if (this.isHidden) g.globalAlpha *= OPACITY_HIDDEN_ITEMS
-        const path = this.wirePath
-        const color = COLOR_WIRE[this.startNode.color]
-        const selected = ctx.pointerOver === PointerOverMode.PointerOver || ctx.pointerOver === PointerOverMode.WireSameOrigin
-        g.lineCap = "round"
-        g.lineJoin = "round"
-        path.draw(g)
-        g.strokeStyle = selected ? COLOR_MOUSE_OVER : color
-        g.lineWidth = selected ? 10 : 8
-        g.stroke()
-        g.strokeStyle = this.parent.editor.options.hideWireColors ? COLOR_UNKNOWN : "#6485ad"
-        g.lineWidth = 4
-        g.stroke()
-        // Fan the trunk out across the existing per-bit terminals.
-        g.strokeStyle = color
-        g.lineWidth = 2
-        for (const nodes of [bus.map(w => w.startNode), bus.map(w => w.endNode)]) {
-            g.beginPath()
-            g.moveTo(nodes[0].posX, nodes[0].posY)
-            g.lineTo(nodes[nodes.length-1].posX, nodes[nodes.length-1].posY)
-            g.stroke()
-        }
-        const first = path.parts[0], last = path.parts[path.parts.length - 1]
-        const x = (first[2] + last[0]) / 2
-        const y = (first[3] + last[1]) / 2
-        g.font = "bold 10px sans-serif"
-        g.textAlign = "center"
-        g.fillStyle = color
-        g.fillText(String(bus.length) + "b", x, y - 7)
-        for (const waypoint of this.waypoints) waypoint.draw(g, ctx.drawParams)
-        g.restore()
-    }
-
-    public override makeTooltip() {
-        const bus = this.busMembers
-        if (!bus) return undefined
-        const source = binaryStringRepr(bus.map(w => w.startNode.value))
-        const target = binaryStringRepr(bus.map(w => w.endNode.value))
-        return tooltipContent("Bus · " + bus.length + " bits", div("Entrée : " + source, div("Sortie : " + target)), 340)
-    }
-
     protected override shouldBeHighlightedWith(compUnderPointer: Drawable): PointerOverMode {
         return compUnderPointer instanceof Wire && compUnderPointer === this.wire ? PointerOverMode.RelatedComponent : PointerOverMode.None
     }
@@ -632,6 +589,7 @@ export class Wire extends Drawable {
             if (isAnimating && !this.parent.editor.timeline.isPaused) {
                 this.requestRedraw({ why: "propagating bus value", isPropagation: true })
             }
+            this._lastDrawnWireValues = [[this.startNode.value, 1]]
             if (bus[0] === this && !this.behavesHidden) this.drawBus(g, ctx, bus)
             return
         }
@@ -709,6 +667,48 @@ export class Wire extends Drawable {
         if (isAnimating && !this.parent.editor.timeline.isPaused) {
             this.requestRedraw({ why: "propagating value", isPropagation: true })
         }
+    }
+
+    private drawBus(g: GraphicsRendering, ctx: DrawContext, bus: Wire[]) {
+        g.save()
+        if (this.isHidden) g.globalAlpha *= OPACITY_HIDDEN_ITEMS
+        const path = this.wirePath
+        const color = COLOR_WIRE[this.startNode.color]
+        const selected = ctx.pointerOver === PointerOverMode.PointerOver || ctx.pointerOver === PointerOverMode.WireSameOrigin
+        g.lineCap = "round"
+        path.draw(g)
+        g.strokeStyle = selected ? COLOR_MOUSE_OVER : color
+        g.lineWidth = selected ? 10 : 8
+        g.stroke()
+        g.strokeStyle = this.parent.editor.options.hideWireColors ? COLOR_UNKNOWN : "#6485ad"
+        g.lineWidth = 4
+        g.stroke()
+        // Fan the trunk out across the existing per-bit terminals.
+        g.strokeStyle = color
+        g.lineWidth = 2
+        for (const nodes of [bus.map(w => w.startNode), bus.map(w => w.endNode)]) {
+            g.beginPath()
+            g.moveTo(nodes[0].posX, nodes[0].posY)
+            g.lineTo(nodes[nodes.length-1].posX, nodes[nodes.length-1].posY)
+            g.stroke()
+        }
+        const first = path.parts[0], last = path.parts[path.parts.length - 1]
+        const x = (first[2] + last[0]) / 2
+        const y = (first[3] + last[1]) / 2
+        g.font = "bold 10px sans-serif"
+        g.textAlign = "center"
+        g.fillStyle = color
+        g.fillText(String(bus.length) + "b", x, y - 7)
+        for (const waypoint of this.waypoints) waypoint.draw(g, ctx.drawParams)
+        g.restore()
+    }
+
+    public override makeTooltip() {
+        const bus = this.busMembers
+        if (!bus) return undefined
+        const source = binaryStringRepr(bus.map(w => w.startNode.value))
+        const target = binaryStringRepr(bus.map(w => w.endNode.value))
+        return tooltipContent("Bus · " + bus.length + " bits", div("Entrée : " + source, div("Sortie : " + target)), 340)
     }
 
     protected override shouldBeHighlightedWith(compUnderPointer: Drawable): PointerOverMode {

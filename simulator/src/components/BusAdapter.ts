@@ -1,53 +1,45 @@
 import * as t from "io-ts"
-import { COLOR_COMPONENT_BORDER, COLOR_NODE_MOUSE_OVER, COLOR_UNKNOWN, GRID_STEP } from "../drawutils"
+import { COLOR_COMPONENT_BORDER, COLOR_NODE_MOUSE_OVER, COLOR_UNKNOWN, drawWireLineToComponent, useCompact } from "../drawutils"
 import { div, tooltipContent } from "../htmlgen"
-import { ArrayFillWith, LogicValue, typeOrUndefined } from "../utils"
+import { ArrayFillWith, LogicValue, Mode, typeOrUndefined } from "../utils"
 import { defineParametrizedComponent, group, groupVertical, param, ParametrizedComponentBase, Repr, ResolvedParams } from "./Component"
 import { DrawContext, DrawableParent, GraphicsRendering, MenuData, MenuItems } from "./Drawable"
+import type { Node } from "./Node"
 
 
-// Like a passthrough pin: no filled component body, only the fan-out spine.
-function drawAdapter(g: GraphicsRendering,ctx: DrawContext, x: number,y: number,bits: number,merge: boolean) {
-    const scalarSide = merge ? -1 : 1
-    const extent = 3 * GRID_STEP
-    const half = (bits - 1) * GRID_STEP
+// Match Passthrough: short native leads, identical spacing and spine.
+function drawAdapter(g: GraphicsRendering, ctx: DrawContext, x: number, y: number, height: number, scalar: readonly Node[], bus: readonly Node[]) {
     g.save()
-    g.lineCap = "round"
-    g.strokeStyle = ctx.isPointerOver ? COLOR_NODE_MOUSE_OVER : COLOR_UNKNOWN
-    g.lineWidth = ctx.isPointerOver ? 6 : 3
+    for (const node of scalar) drawWireLineToComponent(g, node)
+    const [x1,y1,x2,y2] = bus[0].drawCoordsInParentTransform
     g.beginPath()
-    g.moveTo(x,y-half)
-    g.lineTo(x,y+half)
+    g.moveTo(x1,y1)
+    g.lineTo(x2,y2)
+    g.strokeStyle = bus.length > 1 ? "#6485ad" : COLOR_UNKNOWN
+    g.lineWidth = bus.length > 1 ? 5 : 2
     g.stroke()
-    g.strokeStyle = COLOR_COMPONENT_BORDER
-    g.lineWidth = 1.5
-    g.font = "9px sans-serif"
-    g.fillStyle = COLOR_COMPONENT_BORDER
-    g.textAlign = merge ? "left" : "right"
-    for (let i=0;i<bits;i++) {
-        const yy = y-half+i*2*GRID_STEP
+
+    if (bus[0].parent.mode >= Mode.CONNECT) {
         g.beginPath()
-        g.moveTo(x,yy)
-        g.lineTo(x+scalarSide*extent,yy)
+        g.moveTo(x,y-height/2)
+        g.lineTo(x,y+height/2)
+        if (ctx.isPointerOver) {
+            g.lineWidth = 11
+            g.strokeStyle = COLOR_NODE_MOUSE_OVER
+            g.stroke()
+        }
+        g.lineWidth = 3
+        g.strokeStyle = ctx.isPointerOver ? COLOR_COMPONENT_BORDER : COLOR_UNKNOWN
         g.stroke()
-        g.fillText(String(i),x+scalarSide*3,yy-3)
     }
-    g.strokeStyle = "#6485ad"
-    g.lineWidth = 5
-    g.beginPath()
-    g.moveTo(x,y)
-    g.lineTo(x-scalarSide*extent,y)
-    g.stroke()
-    g.fillStyle = COLOR_COMPONENT_BORDER
-    g.textAlign = "center"
-    g.fillText(bits + "b",x-scalarSide*extent*.55,y-6)
     g.restore()
 }
 
 const widths = Array.from({ length: 32 }, (_,i) => i + 1)
 const width = (bits: number) => Math.max(1,Math.min(32,Math.trunc(bits) || 1))
 function individualPins(orient: "e" | "w", x: number, bits: number) {
-    return group(orient, Array.from({ length: bits }, (_,i) => [x, i * 2 - (bits - 1), "D" + i] as const))
+    const spacing = useCompact(bits) ? 1 : 2
+    return group(orient, Array.from({ length: bits }, (_,i) => [x, (i - (bits - 1) / 2) * spacing, "D" + i, { leadLength: 10 }] as const))
 }
 
 export const BusMergerDef = defineParametrizedComponent("bus-merger", true, true, {
@@ -58,10 +50,10 @@ export const BusMergerDef = defineParametrizedComponent("bus-merger", true, true
     valueDefaults: {},
     params: { bits: param(8,widths) },
     validateParams: ({bits}) => ({ bits: width(bits) }),
-    size: ({bits}) => ({ gridWidth: 4, gridHeight: Math.max(2,bits * 2) }),
+    size: ({bits}) => ({ gridWidth: 2, gridHeight: useCompact(bits) ? bits : bits * 2 }),
     makeNodes: ({bits}) => ({
-        ins: { Bits: individualPins("w",-3,bits) },
-        outs: { Bus: groupVertical("e",3,0,bits,0) },
+        ins: { Bits: individualPins("w",-1,bits) },
+        outs: { Bus: groupVertical("e",1,0,bits,0,{ leadLength: 10 }) },
     }),
     initialValue: (_saved,{bits}) => ArrayFillWith<LogicValue>(false,bits),
 })
@@ -73,10 +65,10 @@ export const BusSplitterDef = defineParametrizedComponent("bus-splitter", true, 
     valueDefaults: {},
     params: { bits: param(8,widths) },
     validateParams: ({bits}) => ({ bits: width(bits) }),
-    size: ({bits}) => ({ gridWidth: 4, gridHeight: Math.max(2,bits * 2) }),
+    size: ({bits}) => ({ gridWidth: 2, gridHeight: useCompact(bits) ? bits : bits * 2 }),
     makeNodes: ({bits}) => ({
-        ins: { Bus: groupVertical("w",-3,0,bits,0) },
-        outs: { Bits: individualPins("e",3,bits) },
+        ins: { Bus: groupVertical("w",-1,0,bits,0,{ leadLength: 10 }) },
+        outs: { Bits: individualPins("e",1,bits) },
     }),
     initialValue: (_saved,{bits}) => ArrayFillWith<LogicValue>(false,bits),
 })
@@ -94,10 +86,10 @@ export class BusMerger extends ParametrizedComponentBase<MergerRepr> {
     protected doRecalcValue(): LogicValue[] { return this.inputValues(this.inputs.Bits) }
     protected override propagateValue(value: LogicValue[]) { this.outputValues(this.outputs.Bus,value) }
     public override makeTooltip() {
-        return tooltipContent("Bus Merger · " + this.bits + " bits",div("Regroupe les fils D0 à D" + (this.bits-1) + " dans un seul bus.",div("D0 = bit de poids faible. Aucune modification de la valeur.")))
+        return tooltipContent("Bus Merger · " + this.bits + " bits",div("Regroupe les fils D0 à D" + (this.bits-1) + " dans un seul bus.",div("Ordre des broches (orientation par défaut) : D0 en haut, D" + (this.bits-1) + " en bas."),div("D0 = bit de poids faible. Aucune modification de la valeur.")))
     }
     protected override doDraw(g: GraphicsRendering,ctx: DrawContext) {
-        drawAdapter(g,ctx,this.posX,this.posY,this.bits,true)
+        drawAdapter(g,ctx,this.posX,this.posY,this.unrotatedHeight,this.inputs.Bits,this.outputs.Bus)
     }
     protected override makeComponentSpecificContextMenuItems(): MenuItems {
         return [["mid",MenuData.item("pen","Largeur du bus (" + this.bits + " bits)",async () => {
@@ -120,10 +112,10 @@ export class BusSplitter extends ParametrizedComponentBase<SplitterRepr> {
     protected doRecalcValue(): LogicValue[] { return this.inputValues(this.inputs.Bus) }
     protected override propagateValue(value: LogicValue[]) { this.outputValues(this.outputs.Bits,value) }
     public override makeTooltip() {
-        return tooltipContent("Bus Splitter · " + this.bits + " bits",div("Sépare le bus en fils D0 à D" + (this.bits-1) + ".",div("D0 = bit de poids faible. Aucune modification de la valeur.")))
+        return tooltipContent("Bus Splitter · " + this.bits + " bits",div("Sépare le bus en fils D0 à D" + (this.bits-1) + ".",div("Ordre des broches (orientation par défaut) : D0 en haut, D" + (this.bits-1) + " en bas."),div("D0 = bit de poids faible. Aucune modification de la valeur.")))
     }
     protected override doDraw(g: GraphicsRendering,ctx: DrawContext) {
-        drawAdapter(g,ctx,this.posX,this.posY,this.bits,false)
+        drawAdapter(g,ctx,this.posX,this.posY,this.unrotatedHeight,this.outputs.Bits,this.inputs.Bus)
     }
     protected override makeComponentSpecificContextMenuItems(): MenuItems {
         return [["mid",MenuData.item("pen","Largeur du bus (" + this.bits + " bits)",async () => {

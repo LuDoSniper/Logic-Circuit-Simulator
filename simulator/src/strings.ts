@@ -606,6 +606,7 @@ const Strings_fr = {
         Input: {
             tooltip: {
                 title: template("Entrée (${numBits} bit$s{numBits})"),
+                constant: "Constante verrouillée",
             },
             contextMenu: {
                 LockValue: "Verrouiller cette valeur",
@@ -1520,6 +1521,7 @@ const Strings_en: Strings = {
         Input: {
             tooltip: {
                 title: template("Input (${numBits}-Bit)"),
+                constant: "Locked constant",
             },
             contextMenu: {
                 LockValue: "Lock This Value",

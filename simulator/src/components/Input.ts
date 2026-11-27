@@ -1,7 +1,7 @@
 import * as t from "io-ts"
 import { parseConstantWord } from "../BusBits"
 import { COLOR_BACKGROUND, COLOR_COMPONENT_BORDER, COMPONENT_OUTLINE_THICKNESS, GRID_STEP, INPUT_OUTPUT_DIAMETER, circle, colorForLogicValue, distSquared, drawComponentName, drawValueText, drawValueTextCentered, drawWireLineToComponent, inRect, isTrivialNodeName, triangle, useCompact } from "../drawutils"
-import { mods, tooltipContent } from "../htmlgen"
+import { div, mods, tooltipContent } from "../htmlgen"
 import { S } from "../strings"
 import { ArrayFillWith, binaryStringRepr, ComponentTypeInput, HighImpedance, InputOutputValueRepr, InteractionResult, LogicValue, Mode, Orientation, Unknown, reprForLogicValues, toLogicValueRepr, typeOrUndefined, valuesFromReprForInput } from "../utils"
 import { ClockDef, ClockRepr } from "./Clock"
@@ -455,7 +455,8 @@ export class Input extends InputBase<InputRepr> {
 
     public override makeTooltip() {
         const s = S.Components.Input.tooltip
-        return tooltipContent(undefined, mods(s.title.expand({ numBits: this.numBits })))
+        return tooltipContent(undefined, mods(s.title.expand({ numBits: this.numBits }),
+            ...(this._isConstant ? [div(s.constant + " · " + binaryStringRepr(this.value))] : [])))
     }
 
     public get isLinkedToSomeClock(): boolean {
@@ -466,8 +467,43 @@ export class Input extends InputBase<InputRepr> {
         return this._isPushButton
     }
 
-    protected override shouldDrawBorder() {
-        return !this._isConstant
+    protected override doDraw(g: GraphicsRendering, ctx: DrawContext) {
+        super.doDraw(g,ctx)
+        if (!this._isConstant) return
+
+        // Keep the normal I/O shape and logic colors; a small upright lock
+        // distinguishes constants at any rotation and in either theme.
+        ctx.inNonTransformedFrame(() => {
+            const x = this.posX + this.width/2 - 2
+            const y = this.posY - this.height/2 - 3
+            g.save()
+            g.fillStyle = COLOR_BACKGROUND
+            g.beginPath()
+            circle(g,x,y,15)
+            g.fill()
+            g.strokeStyle = COLOR_COMPONENT_BORDER
+            g.lineWidth = 1.3
+            g.lineCap = "round"
+            // Shackle.
+            g.beginPath()
+            g.moveTo(x-2.5,y-1)
+            g.lineTo(x-2.5,y-3.5)
+            g.lineTo(x-1.4,y-5)
+            g.lineTo(x+1.4,y-5)
+            g.lineTo(x+2.5,y-3.5)
+            g.lineTo(x+2.5,y-1)
+            g.stroke()
+            // Lock body.
+            g.beginPath()
+            g.rect(x-4,y-1,8,6)
+            g.fill()
+            g.stroke()
+            g.beginPath()
+            g.moveTo(x,y+1)
+            g.lineTo(x,y+3)
+            g.stroke()
+            g.restore()
+        })
     }
 
     public override pointerClicked(e: PointerEvent) {

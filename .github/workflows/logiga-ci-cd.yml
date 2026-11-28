@@ -1,4 +1,4 @@
-name: Logiga CI/CD
+name: Logica CI/CD
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: logiga-production
+  group: logica-production
   cancel-in-progress: false
 
 jobs:
@@ -33,35 +33,26 @@ jobs:
       - run: npm run test:server
       - run: npm run test:component
 
+
   deploy:
-    name: Deploy via SSH
+    name: Dispatch private deployment
     needs: build
-    if: github.ref == 'refs/heads/main' && vars.LOGIGA_DEPLOY_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && vars.LOGICA_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
     steps:
-      - name: Trigger server deployment
+      - name: Trigger private deployment workflow
         shell: bash
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_TOKEN: ${{ secrets.LOGICA_DEPLOY_TOKEN }}
         run: |
           set -euo pipefail
-          : "${DEPLOY_HOST:?Missing DEPLOY_HOST}"
-          : "${DEPLOY_SSH_KEY:?Missing DEPLOY_SSH_KEY}"
-          : "${DEPLOY_KNOWN_HOSTS:?Missing DEPLOY_KNOWN_HOSTS}"
-          ssh_dir="$(mktemp -d)"
-          trap 'rm -rf "$ssh_dir"' EXIT
-          umask 077
-          printf '%s\n' "$DEPLOY_SSH_KEY" > "$ssh_dir/key"
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
-          ssh -T -p "${DEPLOY_PORT:-22}" \
-            -i "$ssh_dir/key" \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile="$ssh_dir/known_hosts" \
-            -o ConnectTimeout=15 \
-            -- "logiga-deploy@$DEPLOY_HOST" "deploy-logiga $GITHUB_SHA"
+          : "${DEPLOY_TOKEN:?Missing LOGICA_DEPLOY_TOKEN}"
+          jq -n --arg sha "$GITHUB_SHA" '{ref:"main",inputs:{sha:$sha}}' |
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer $DEPLOY_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "Content-Type: application/json" \
+              --data-binary @- \
+              https://api.github.com/repos/Donnarieix/logica-deploy/actions/workflows/deploy.yml/dispatches
